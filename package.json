@@ -1,0 +1,15 @@
+{
+  "name": "talk-to-llm",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "libs/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @talktollm/web",
+    "build:web": "npm run build --workspace @talktollm/web",
+    "test:web": "npm run test --workspace @talktollm/web"
+  }
+}
+

@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.DS_Store
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage/
+*.pyc
+services/realtime-api/.env
+apps/web/.env
+
