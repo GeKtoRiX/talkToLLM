@@ -307,9 +307,22 @@ export function useVoiceSession() {
       return;
     }
 
+    const currentState = sessionStateRef.current;
+    if (
+      currentState === "thinking" ||
+      currentState === "transcribing" ||
+      currentState === "synthesizing" ||
+      currentState === "capturing_speech"
+    ) {
+      return;
+    }
+
+    // Update ref immediately to block re-entry before React re-render syncs it.
+    sessionStateRef.current = "thinking";
+
     talkHotkeyPressedRef.current = false;
     audioCaptureRef.current.stop();
-    if (sessionStateRef.current === "speaking") {
+    if (currentState === "speaking") {
       interrupt();
     }
 
