@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "talkToLLM": {
+      "command": "/mnt/HDD_Store/talkToLLM/.venv/bin/python",
+      "args": ["/mnt/HDD_Store/talkToLLM/mcp_server.py"],
+      "env": {
+        "PYTHONPATH": "/mnt/HDD_Store/talkToLLM/services/realtime-api"
+      }
+    }
+  },
+  "permissions": {
+    "allow": [
+      "mcp__talkToLLM__stack_status",
+      "mcp__talkToLLM__start_stack",
+      "mcp__talkToLLM__stop_stack",
+      "mcp__talkToLLM__get_log",
+      "mcp__talkToLLM__get_env",
+      "mcp__talkToLLM__set_env",
+      "mcp__talkToLLM__list_lmstudio_models",
+      "mcp__talkToLLM__backend_health",
+      "mcp__talkToLLM__run_backend_tests",
+      "mcp__talkToLLM__run_frontend_tests",
+      "mcp__talkToLLM__run_all_tests",
+      "mcp__talkToLLM__build_frontend",
+      "mcp__talkToLLM__reinstall_desktop_shortcut",
+      "mcp__talkToLLM__run_e2e"
+    ]
+  }
+}

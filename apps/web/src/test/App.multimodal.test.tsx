@@ -1,8 +1,7 @@
-import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./lib/audioCapture", () => ({
+vi.mock("../lib/audioCapture", () => ({
   AudioCaptureController: class {
     async start(): Promise<void> {
       return Promise.resolve();
@@ -14,7 +13,7 @@ vi.mock("./lib/audioCapture", () => ({
   },
 }));
 
-vi.mock("./lib/playbackController", () => ({
+vi.mock("../lib/playbackController", () => ({
   PlaybackController: class {
     async enqueueWavBase64(): Promise<void> {
       return Promise.resolve();
@@ -26,7 +25,7 @@ vi.mock("./lib/playbackController", () => ({
   },
 }));
 
-import App from "./App";
+import App from "../App";
 
 class MockWebSocket {
   static CONNECTING = 0;

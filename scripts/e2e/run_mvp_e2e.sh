@@ -3,12 +3,12 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 RUNTIME_DIR="${REPO_ROOT}/tmp/runtime"
 ENV_FILE="${REPO_ROOT}/services/realtime-api/.env"
 ENV_EXAMPLE="${REPO_ROOT}/services/realtime-api/.env.example"
-LAUNCHER_SCRIPT="${REPO_ROOT}/scripts/launch_desktop.sh"
-E2E_SCRIPT="${REPO_ROOT}/scripts/e2e_live_check.py"
+LAUNCHER_SCRIPT="${REPO_ROOT}/scripts/stack/launch_desktop.sh"
+E2E_SCRIPT="${REPO_ROOT}/scripts/e2e/e2e_live_check.py"
 START_LOG="${RUNTIME_DIR}/mvp-e2e-start.log"
 
 LAUNCHER_PID=""
