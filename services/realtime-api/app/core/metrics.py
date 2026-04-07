@@ -31,6 +31,9 @@ stage_latency = Histogram(
 )
 
 
+def observe_stage(stage: str, duration_seconds: float) -> None:
+    stage_latency.labels(stage=stage).observe(duration_seconds)
+
+
 def metrics_response() -> Response:
     return Response(generate_latest(registry), media_type=CONTENT_TYPE_LATEST)
-

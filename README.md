@@ -69,9 +69,90 @@ Backend settings live in `services/realtime-api/.env.example`.
 
 Frontend settings live in `apps/web/.env.example`.
 
+## Running With Real Providers
+
+The default code path used by tests remains safe, but the sample backend environment is now configured for the local stack: `Whisper (PyTorch ROCm) + LM Studio + Kokoro`.
+
+To enable the real provider path:
+
+1. Install ROCm-enabled PyTorch for Whisper:
+
+```bash
+. .venv/bin/activate
+pip install --index-url https://download.pytorch.org/whl/rocm6.4 torch==2.9.1+rocm6.4
+```
+
+2. Install the optional realtime dependencies:
+
+```bash
+pip install -e "services/realtime-api[dev,real]"
+```
+
+3. Make sure the host has `espeak-ng` available for Kokoro English voices.
+
+4. Copy `services/realtime-api/.env.example` to `services/realtime-api/.env`.
+
+```env
+STT_PROVIDER=whisper_rocm
+LLM_PROVIDER=lmstudio
+TTS_PROVIDER=kokoro
+LMSTUDIO_BASE_URL=http://localhost:1234/v1
+LLM_MODEL=gemma-4-e4b-it
+STT_MODEL_ROOT=models/whisper
+KOKORO_MODEL_ROOT=models/kokoro
+KOKORO_DEVICE=cpu
+```
+
+5. Start the API and web app as usual.
+
+Notes:
+
+- `whisper_rocm` uses `openai-whisper` on top of a ROCm-enabled PyTorch runtime.
+- The OpenAI Whisper checkpoint is stored under `models/whisper`, typically as `models/whisper/base.en.pt`.
+- The realtime TTS path uses Kokoro and emits WAV chunks that are compatible with the existing browser playback queue.
+- The local LLM path targets LM Studio's OpenAI-compatible `/v1/chat/completions` streaming endpoint and supports best-effort cancellation.
+- `KOKORO_DEVICE=cpu` is the intended default for this stage; Kokoro remains on CPU even when Whisper uses ROCm.
+- Turn logs now include `stt_latency_s`, `llm_first_token_latency_s`, `tts_first_audio_latency_s`, and `time_to_first_audio_s`.
+- To pre-download local STT/TTS assets into the repo, run `python scripts/prepare_local_models.py`.
+- To verify that Whisper is actually running on the ROCm path, run `PYTHONPATH=services/realtime-api python scripts/check_whisper_rocm.py`.
+
 ## Verification
 
 - Web tests: `npm run test:web`
 - Web build: `npm run build:web`
 - API tests: `pytest services/realtime-api/app/tests`
 
+## MVP Workflow
+
+To start the real local stack, run the desktop launcher:
+
+```bash
+npm run launch:desktop
+```
+
+To boot the stack if needed, run a live end-to-end check, and leave the app running so you can start working right away:
+
+```bash
+npm run mvp:e2e
+```
+
+That command verifies:
+
+- backend `/healthz`
+- backend `/metrics`
+- frontend availability on `http://127.0.0.1:5173`
+- LM Studio model availability
+- websocket session start
+- speech turn processing
+- transcript generation
+- LLM text streaming
+- TTS chunk delivery
+- interruption handling
+- recovery on a second turn
+- websocket session stop
+
+To stop the local stack later:
+
+```bash
+npm run mvp:stop
+```

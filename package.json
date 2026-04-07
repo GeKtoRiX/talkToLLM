@@ -7,9 +7,11 @@
     "libs/*"
   ],
   "scripts": {
+    "launch:desktop": "./scripts/launch_desktop.sh",
+    "mvp:e2e": "./scripts/run_mvp_e2e.sh",
+    "mvp:stop": "./scripts/stop_stack.sh",
     "dev:web": "npm run dev --workspace @talktollm/web",
     "build:web": "npm run build --workspace @talktollm/web",
     "test:web": "npm run test --workspace @talktollm/web"
   }
 }
-

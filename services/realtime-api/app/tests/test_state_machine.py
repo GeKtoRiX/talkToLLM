@@ -10,3 +10,6 @@ def test_state_machine_happy_path():
 def test_state_machine_rejects_invalid_transition():
     assert transition_state(SessionState.IDLE, "speech_started") == SessionState.IDLE
 
+
+def test_error_state_can_recover_on_new_speech():
+    assert transition_state(SessionState.ERROR, "speech_started") == SessionState.CAPTURING_SPEECH

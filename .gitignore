@@ -10,5 +10,9 @@ coverage/
 *.pyc
 *.tsbuildinfo
 *.egg-info/
+models/whisper/**
+!models/whisper/.gitkeep
+models/kokoro/**
+!models/kokoro/.gitkeep
 services/realtime-api/.env
 apps/web/.env

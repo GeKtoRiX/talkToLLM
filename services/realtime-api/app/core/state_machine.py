@@ -51,10 +51,13 @@ TRANSITIONS: dict[SessionState, dict[str, SessionState]] = {
         "session_stopped": SessionState.IDLE,
         "failed": SessionState.ERROR,
     },
-    SessionState.ERROR: {"session_started": SessionState.LISTENING, "session_stopped": SessionState.IDLE},
+    SessionState.ERROR: {
+        "session_started": SessionState.LISTENING,
+        "speech_started": SessionState.CAPTURING_SPEECH,
+        "session_stopped": SessionState.IDLE,
+    },
 }
 
 
 def transition_state(current: SessionState, action: str) -> SessionState:
     return TRANSITIONS[current].get(action, current)
-

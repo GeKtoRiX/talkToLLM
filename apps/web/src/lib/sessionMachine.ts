@@ -57,10 +57,10 @@ const transitions: Record<SessionState, Partial<Record<SessionAction, SessionSta
   error: {
     session_stopped: "idle",
     session_started: "listening",
+    speech_started: "capturing_speech",
   },
 };
 
 export function transitionSessionState(current: SessionState, action: SessionAction): SessionState {
   return transitions[current][action] ?? current;
 }
-

@@ -19,6 +19,37 @@ class JsonFormatter(logging.Formatter):
         if hasattr(record, "turn_id"):
             payload["turn_id"] = getattr(record, "turn_id")
 
+        standard_keys = {
+            "args",
+            "created",
+            "exc_info",
+            "exc_text",
+            "filename",
+            "funcName",
+            "levelname",
+            "levelno",
+            "lineno",
+            "module",
+            "msecs",
+            "message",
+            "msg",
+            "name",
+            "pathname",
+            "process",
+            "processName",
+            "relativeCreated",
+            "stack_info",
+            "thread",
+            "threadName",
+            "event",
+            "session_id",
+            "turn_id",
+        }
+        for key, value in record.__dict__.items():
+            if key.startswith("_") or key in standard_keys:
+                continue
+            payload[key] = value
+
         return json.dumps(payload)
 
 
@@ -29,4 +60,3 @@ def configure_logging(level: str) -> None:
     handler.setFormatter(JsonFormatter())
     root_logger.addHandler(handler)
     root_logger.setLevel(level.upper())
-

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncIterator
+from time import perf_counter
 from typing import Callable
 
-from app.core.metrics import provider_errors, stage_latency
-from app.core.state_machine import SessionState
-from app.core.state_machine import transition_state
+from app.core.metrics import observe_stage, provider_errors
+from app.core.state_machine import SessionState, transition_state
 from app.core.text import SentenceChunker, build_prompt_messages
 from app.providers.base import LLMProvider, STTProvider, TTSProvider
 
@@ -27,31 +28,48 @@ class TurnOrchestrator:
         self.tts = tts
         self.system_prompt = system_prompt
 
+    async def cancel_turn(self, turn_id: str | None) -> None:
+        if turn_id is None:
+            return
+        await asyncio.gather(
+            self.llm.cancel(turn_id),
+            self.tts.cancel(turn_id),
+            return_exceptions=True,
+        )
+
     async def process_turn(self, session) -> None:
         turn_id = session.current_turn_id
         if turn_id is None:
             return
 
+        turn_started = session.turn_started_perf or perf_counter()
+        llm_first_token_latency: float | None = None
+        tts_first_audio_latency: float | None = None
+        time_to_first_audio: float | None = None
+        tts_task: asyncio.Task[None] | None = None
+        sentence_queue: asyncio.Queue[tuple[int, str] | None] = asyncio.Queue()
+        tts_generation_started: float | None = None
+
         try:
             stt = self.stt_factory()
             await stt.start_session({"sample_rate": 16000, "language": "en"})
-            for audio_chunk in [bytes(session.current_audio)]:
-                with stage_latency.labels(stage="audio_received").time():
-                    await stt.append_audio(audio_chunk)
 
-            with stage_latency.labels(stage="stt_completed").time():
-                transcript = await stt.finalize_utterance()
+            audio_chunk = bytes(session.current_audio)
+            if audio_chunk:
+                await stt.append_audio(audio_chunk)
+
+            stt_started = perf_counter()
+            transcript = await stt.finalize_utterance()
+            stt_latency = perf_counter() - stt_started
+            observe_stage("stt_completed", stt_latency)
 
             session.state = transition_state(session.state, "transcript_finalized")
             session.history.append({"role": "user", "content": transcript.text})
             await session.send_event("transcript.final", {"text": transcript.text, "isFinal": True})
             await session.send_event("llm.thinking", {"state": "thinking"})
 
-            with stage_latency.labels(stage="llm_started").time():
-                messages = build_prompt_messages(self.system_prompt, session.history[:-1], transcript.text)
-
+            messages = build_prompt_messages(self.system_prompt, session.history[:-1], transcript.text)
             chunker = SentenceChunker()
-            sentence_queue: asyncio.Queue[tuple[int, str] | None] = asyncio.Queue()
 
             async def sentence_stream() -> AsyncIterator[tuple[int, str]]:
                 while True:
@@ -61,45 +79,88 @@ class TurnOrchestrator:
                     yield item
 
             async def tts_worker() -> None:
+                nonlocal tts_first_audio_latency, time_to_first_audio
                 first_audio_sent = False
-                async for audio_chunk in self.tts.stream_synthesize(sentence_stream(), voice="default", format="wav"):
+                async for audio_chunk in self.tts.stream_synthesize(
+                    sentence_stream(),
+                    voice="default",
+                    format="wav",
+                    job_id=turn_id,
+                ):
                     if await session.interruption_manager.is_cancelled(turn_id):
                         return
+
+                    if not first_audio_sent:
+                        tts_first_audio_latency = perf_counter() - (tts_generation_started or llm_stream_started)
+                        time_to_first_audio = perf_counter() - turn_started
+                        observe_stage("tts_first_audio", tts_first_audio_latency)
+                        observe_stage("time_to_first_audio", time_to_first_audio)
                     session.state = transition_state(session.state, "tts_started")
-                    with stage_latency.labels(stage="tts_first_audio").time():
-                        await session.send_tts_chunk(
-                            chunk_index=audio_chunk.chunk_index,
-                            text=audio_chunk.text,
-                            audio_bytes=audio_chunk.audio_bytes,
-                        )
+                    await session.send_tts_chunk(
+                        chunk_index=audio_chunk.chunk_index,
+                        text=audio_chunk.text,
+                        audio_bytes=audio_chunk.audio_bytes,
+                    )
                     if not first_audio_sent:
                         session.state = transition_state(session.state, "playback_started")
                         first_audio_sent = True
 
             tts_task = asyncio.create_task(tts_worker())
             chunk_index = 0
+            llm_stream_started = perf_counter()
+            first_token_seen = False
+            interrupted = False
 
             async for delta in self.llm.stream(messages, config={"turn_id": turn_id}):
                 if await session.interruption_manager.is_cancelled(turn_id):
-                    tts_task.cancel()
-                    return
+                    interrupted = True
+                    break
+                if not first_token_seen:
+                    llm_first_token_latency = perf_counter() - llm_stream_started
+                    observe_stage("llm_first_token", llm_first_token_latency)
+                    first_token_seen = True
                 session.response_text += delta
                 await session.send_event("response.text.delta", {"text": delta})
                 for sentence in chunker.push(delta):
+                    if tts_generation_started is None:
+                        tts_generation_started = perf_counter()
                     await sentence_queue.put((chunk_index, sentence))
                     chunk_index += 1
 
+            if interrupted:
+                await sentence_queue.put(None)
+                return
+
             for sentence in chunker.flush():
+                if tts_generation_started is None:
+                    tts_generation_started = perf_counter()
                 await sentence_queue.put((chunk_index, sentence))
                 chunk_index += 1
             await sentence_queue.put(None)
             await tts_task
 
+            if await session.interruption_manager.is_cancelled(turn_id):
+                return
+
             session.history.append({"role": "assistant", "content": session.response_text})
             await session.send_event("response.text.final", {"text": session.response_text})
             session.state = SessionState.LISTENING
-            await session.interruption_manager.clear(turn_id)
+            logger.info(
+                "turn completed",
+                extra={
+                    "event": "turn.completed",
+                    "session_id": session.session_id,
+                    "turn_id": turn_id,
+                    "stt_latency_s": round(stt_latency, 3),
+                    "llm_first_token_latency_s": round(llm_first_token_latency or 0.0, 3),
+                    "tts_first_audio_latency_s": round(tts_first_audio_latency or 0.0, 3),
+                    "time_to_first_audio_s": round(time_to_first_audio or 0.0, 3),
+                    "transcript_length": len(transcript.text),
+                    "response_length": len(session.response_text),
+                },
+            )
         except asyncio.CancelledError:
+            await self.cancel_turn(turn_id)
             logger.info(
                 "turn cancelled",
                 extra={"event": "turn.cancelled", "session_id": session.session_id, "turn_id": turn_id},
@@ -116,3 +177,12 @@ class TurnOrchestrator:
                 "error",
                 {"code": "TURN_FAILED", "message": "The current turn failed before playback completed."},
             )
+            session.state = SessionState.LISTENING
+        finally:
+            if tts_task is not None and not tts_task.done():
+                tts_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await tts_task
+            await self.cancel_turn(turn_id)
+            await session.interruption_manager.clear(turn_id)
+            session.current_task = None

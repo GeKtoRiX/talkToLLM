@@ -16,4 +16,8 @@ describe("sessionMachine", () => {
   it("preserves state for unsupported transitions", () => {
     expect(transitionSessionState("idle", "speech_started")).toBe("idle");
   });
+
+  it("allows recovery from error when the user starts speaking again", () => {
+    expect(transitionSessionState("error", "speech_started")).toBe("capturing_speech");
+  });
 });

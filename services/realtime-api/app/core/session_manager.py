@@ -5,6 +5,7 @@ import base64
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from time import perf_counter
 from uuid import uuid4
 
 from fastapi import WebSocket
@@ -29,6 +30,8 @@ class SessionContext:
     sequence: int = 0
     interruption_manager: InterruptionManager = field(default_factory=InterruptionManager)
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    turn_started_perf: float | None = None
+    speech_ended_perf: float | None = None
 
     async def send_event(self, event_type: str, payload: dict) -> None:
         self.sequence += 1
@@ -75,6 +78,8 @@ class SessionManager:
         session.current_turn_id = str(uuid4())
         session.current_audio.clear()
         session.response_text = ""
+        session.turn_started_perf = perf_counter()
+        session.speech_ended_perf = None
         session.state = transition_state(session.state, "speech_started")
         return session.current_turn_id
 
@@ -90,4 +95,3 @@ class SessionManager:
             "playback interrupted",
             extra={"event": "playback.interrupt", "session_id": session.session_id, "turn_id": session.current_turn_id},
         )
-

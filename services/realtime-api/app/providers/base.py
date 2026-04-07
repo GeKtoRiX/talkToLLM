@@ -50,10 +50,10 @@ class TTSProvider(ABC):
         text_stream: AsyncIterator[tuple[int, str]],
         voice: str,
         format: str,
+        job_id: str | None = None,
     ) -> AsyncIterator[TtsChunk]:
         raise NotImplementedError
 
     @abstractmethod
     async def cancel(self, job_id: str) -> None:
         raise NotImplementedError
-
