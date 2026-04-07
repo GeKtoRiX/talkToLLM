@@ -10,6 +10,7 @@ export type SessionAction =
   | "tts_started"
   | "playback_started"
   | "playback_interrupted"
+  | "playback_completed"
   | "session_stopped"
   | "failed";
 
@@ -47,12 +48,14 @@ const transitions: Record<SessionState, Partial<Record<SessionAction, SessionSta
     text_submitted: "thinking",
     playback_started: "speaking",
     playback_interrupted: "interrupted",
+    playback_completed: "listening",
     failed: "error",
   },
   speaking: {
     speech_started: "capturing_speech",
     text_submitted: "thinking",
     playback_interrupted: "interrupted",
+    playback_completed: "listening",
     session_stopped: "idle",
     failed: "error",
   },

@@ -19,10 +19,13 @@ import { transitionSessionState } from "../lib/sessionMachine";
 
 const REALTIME_WS_URL = import.meta.env.VITE_REALTIME_WS_URL ?? "ws://localhost:8000/ws";
 
+export type ConversationMessage = { role: "user" | "assistant"; text: string };
+
 export function useVoiceSession() {
   const [sessionState, setSessionState] = useState<SessionState>("idle");
   const [transcript, setTranscript] = useState("");
   const [assistantText, setAssistantText] = useState("");
+  const [conversationHistory, setConversationHistory] = useState<ConversationMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [textQuestion, setTextQuestion] = useState("");
@@ -41,6 +44,12 @@ export function useVoiceSession() {
   useEffect(() => {
     sessionStateRef.current = sessionState;
   }, [sessionState]);
+
+  useEffect(() => {
+    playbackRef.current.onQueueEmpty = () => {
+      setSessionState((current) => transitionSessionState(current, "playback_completed"));
+    };
+  }, []);
 
   useEffect(() => {
     activeScreenshotRef.current = activeScreenshot;
@@ -135,6 +144,7 @@ export function useVoiceSession() {
     setError(null);
     setTranscript("");
     setAssistantText("");
+    setConversationHistory([]);
 
     const socket = new WebSocket(REALTIME_WS_URL);
     socket.binaryType = "arraybuffer";
@@ -162,21 +172,28 @@ export function useVoiceSession() {
           setConnected(true);
           break;
         case "transcript.partial":
-        case "transcript.final":
-          setTranscript((event.payload as TranscriptPayload).text);
+        case "transcript.final": {
+          const transcriptText = (event.payload as TranscriptPayload).text;
+          setTranscript(transcriptText);
           if (event.type === "transcript.final") {
+            setConversationHistory((prev) => [...prev, { role: "user", text: transcriptText }]);
+            setTranscript("");
             setSessionState((current) => transitionSessionState(current, "transcript_finalized"));
           }
           break;
+        }
         case "llm.thinking":
           setSessionState((current) => transitionSessionState(current, "llm_thinking"));
           break;
         case "response.text.delta":
           setAssistantText((current) => current + (event.payload as ResponseTextPayload).text);
           break;
-        case "response.text.final":
-          setAssistantText((event.payload as ResponseTextPayload).text);
+        case "response.text.final": {
+          const finalText = (event.payload as ResponseTextPayload).text;
+          setConversationHistory((prev) => [...prev, { role: "assistant", text: finalText }]);
+          setAssistantText("");
           break;
+        }
         case "tts.chunk":
           setSessionState((current) => transitionSessionState(current, "tts_started"));
           await playbackRef.current.enqueueWavBase64((event.payload as TtsChunkPayload).audioBase64, () => {
@@ -293,7 +310,8 @@ export function useVoiceSession() {
 
     setError(null);
     setAssistantText("");
-    setTranscript(text);
+    setTranscript("");
+    setConversationHistory((prev) => [...prev, { role: "user", text }]);
     setTextQuestion("");
     setSessionState((current) => transitionSessionState(current, "text_submitted"));
 
@@ -322,6 +340,7 @@ export function useVoiceSession() {
     sessionState,
     transcript,
     assistantText,
+    conversationHistory,
     error,
     connected,
     textQuestion,

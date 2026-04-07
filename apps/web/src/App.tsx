@@ -1,6 +1,5 @@
 import { useRef } from "react";
 import { StatusPill } from "./components/StatusPill";
-import { TranscriptPanel } from "./components/TranscriptPanel";
 import { acceptedImageFileInput } from "./lib/imageAttachments";
 import { useVoiceSession } from "./hooks/useVoiceSession";
 
@@ -10,6 +9,7 @@ export default function App() {
     sessionState,
     transcript,
     assistantText,
+    conversationHistory,
     error,
     connected,
     textQuestion,
@@ -166,8 +166,32 @@ export default function App() {
       </section>
 
       <section className="panels">
-        <TranscriptPanel title="Transcript" body={transcript || "Your final transcript will appear here."} />
-        <TranscriptPanel title="Assistant" body={assistantText || "The assistant response will stream here."} />
+        <article className="panel-card">
+          <p className="panel-title">Conversation</p>
+          <div className="conversation-messages">
+            {conversationHistory.length === 0 && !transcript && !assistantText ? (
+              <p className="panel-body">Your conversation will appear here.</p>
+            ) : null}
+            {conversationHistory.map((msg, i) => (
+              <div key={i} className={`conversation-message conversation-message--${msg.role}`}>
+                <span className="conversation-message__role">{msg.role === "user" ? "You" : "Assistant"}</span>
+                <p className="conversation-message__text">{msg.text}</p>
+              </div>
+            ))}
+            {transcript ? (
+              <div className="conversation-message conversation-message--user conversation-message--streaming">
+                <span className="conversation-message__role">You</span>
+                <p className="conversation-message__text">{transcript}</p>
+              </div>
+            ) : null}
+            {assistantText ? (
+              <div className="conversation-message conversation-message--assistant conversation-message--streaming">
+                <span className="conversation-message__role">Assistant</span>
+                <p className="conversation-message__text">{assistantText}</p>
+              </div>
+            ) : null}
+          </div>
+        </article>
       </section>
     </main>
   );

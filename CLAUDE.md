@@ -21,7 +21,7 @@ Monorepo: React + Vite frontend, FastAPI + Uvicorn backend, shared TypeScript co
 apps/web/                        React + Vite frontend
   src/
     components/                  StatusPill, TranscriptPanel (+ *.test.tsx co-located)
-    hooks/                       useVoiceSession.ts
+    hooks/                       useVoiceSession.ts (session state, conversationHistory, playback)
     lib/                         playbackController, audioCapture, imageAttachments,
                                  sessionMachine (+ *.test.ts co-located)
     test/                        Integration tests: App.multimodal.test.tsx, setup.ts
@@ -92,7 +92,7 @@ Binary frames carry raw PCM audio chunks from the browser AudioWorklet.
 ## Testing
 
 ```bash
-# Frontend unit + integration tests (Vitest)  — 43 tests
+# Frontend unit + integration tests (Vitest)  — 47 tests
 npm run test:web
 
 # Backend tests (pytest, all three tiers)     — 70 tests
@@ -115,7 +115,7 @@ Frontend test layout:
 ## MCP server
 
 `mcp_server.py` exposes project tools to Claude Code via `.claude/settings.json`.
-Registered as server `talkToLLM` with 11 tools:
+Registered as server `talkToLLM` with 14 tools:
 
 | Tool | Description |
 |------|-------------|
@@ -129,6 +129,9 @@ Registered as server `talkToLLM` with 11 tools:
 | `backend_health` | Parse /healthz JSON |
 | `run_backend_tests` | Run pytest (services/realtime-api) |
 | `run_frontend_tests` | Run Vitest (apps/web) |
+| `run_all_tests` | Run backend + frontend suites in sequence |
+| `build_frontend` | tsc + vite build → apps/web/dist/ |
+| `reinstall_desktop_shortcut` | Copy .desktop → ~/.local/share/applications/ |
 | `run_e2e` | Execute e2e_live_check.py |
 
 Dependencies: `mcp` installed via `.venv/bin/pip install mcp`.

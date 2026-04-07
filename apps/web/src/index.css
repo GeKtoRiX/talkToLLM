@@ -235,6 +235,43 @@ button {
   color: rgba(247, 243, 232, 0.94);
 }
 
+.conversation-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.conversation-message {
+  display: grid;
+  gap: 4px;
+}
+
+.conversation-message__role {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.conversation-message--user .conversation-message__role {
+  color: #f3a84d;
+}
+
+.conversation-message--assistant .conversation-message__role {
+  color: #5dc8ff;
+}
+
+.conversation-message__text {
+  margin: 0;
+  white-space: pre-wrap;
+  color: rgba(247, 243, 232, 0.94);
+}
+
+.conversation-message--streaming .conversation-message__text {
+  color: rgba(247, 243, 232, 0.6);
+}
+
 .error-banner {
   margin: 0;
   padding: 12px 14px;

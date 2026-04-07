@@ -7,6 +7,8 @@ export class PlaybackController {
 
   private isPlaying = false;
 
+  onQueueEmpty?: () => void;
+
   async enqueueWavBase64(audioBase64: string, onPlaybackStarted?: () => void): Promise<void> {
     const arrayBuffer = this.base64ToArrayBuffer(audioBase64);
     const context = await this.getContext();
@@ -47,6 +49,7 @@ export class PlaybackController {
     const nextBuffer = this.queue.shift();
     if (!nextBuffer) {
       this.isPlaying = false;
+      this.onQueueEmpty?.();
       return;
     }
 

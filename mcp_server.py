@@ -352,7 +352,7 @@ def run_frontend_tests(extra_args: str = "") -> str:
 @mcp.tool()
 def run_all_tests(backend_args: str = "", frontend_args: str = "") -> str:
     """
-    Run the full test suite: backend pytest (70 tests) then frontend Vitest (43 tests).
+    Run the full test suite: backend pytest (70 tests) then frontend Vitest (47 tests).
 
     Args:
       backend_args:  extra flags forwarded to pytest  (e.g. "-k test_config -v")

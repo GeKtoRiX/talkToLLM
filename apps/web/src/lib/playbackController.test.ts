@@ -95,6 +95,25 @@ describe("PlaybackController", () => {
     expect(() => ctrl.stop()).not.toThrow();
   });
 
+  it("calls onQueueEmpty when the queue drains naturally", async () => {
+    const onQueueEmpty = vi.fn();
+    const ctrl = new PlaybackController();
+    ctrl.onQueueEmpty = onQueueEmpty;
+    await ctrl.enqueueWavBase64(minimalBase64());
+    // Simulate natural end of playback by triggering the onended callback
+    latestSource.onended?.();
+    expect(onQueueEmpty).toHaveBeenCalledOnce();
+  });
+
+  it("does not call onQueueEmpty when stop() is called", async () => {
+    const onQueueEmpty = vi.fn();
+    const ctrl = new PlaybackController();
+    ctrl.onQueueEmpty = onQueueEmpty;
+    await ctrl.enqueueWavBase64(minimalBase64());
+    ctrl.stop();
+    expect(onQueueEmpty).not.toHaveBeenCalled();
+  });
+
   it("resumes suspended AudioContext before playback", async () => {
     mockContext.state = "suspended";
     const ctrl = new PlaybackController();

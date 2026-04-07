@@ -24,4 +24,12 @@ describe("sessionMachine", () => {
   it("allows text turns to go directly into thinking", () => {
     expect(transitionSessionState("listening", "text_submitted")).toBe("thinking");
   });
+
+  it("moves speaking → listening when playback completes naturally", () => {
+    expect(transitionSessionState("speaking", "playback_completed")).toBe("listening");
+  });
+
+  it("moves synthesizing → listening when playback completes naturally", () => {
+    expect(transitionSessionState("synthesizing", "playback_completed")).toBe("listening");
+  });
 });
