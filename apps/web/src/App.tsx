@@ -105,30 +105,29 @@ export default function App() {
           <button type="button" className="secondary-button" onClick={stopSession} disabled={!connected}>
             Stop Session
           </button>
+          <button
+            type="button"
+            className="talk-button"
+            aria-keyshortcuts="Q"
+            onMouseDown={startTalking}
+            onMouseUp={stopTalking}
+            onMouseLeave={stopTalking}
+            onTouchStart={(event) => {
+              event.preventDefault();
+              startTalking();
+            }}
+            onTouchEnd={(event) => {
+              event.preventDefault();
+              stopTalking();
+            }}
+            disabled={!connected}
+          >
+            Hold to Talk (Q)
+          </button>
           <button type="button" className="secondary-button" onClick={interrupt} disabled={!connected}>
-            Interrupt
+            Interrupt Playback
           </button>
         </div>
-
-        <button
-          type="button"
-          className="talk-button talk-button--full"
-          aria-keyshortcuts="Q"
-          onMouseDown={startTalking}
-          onMouseUp={stopTalking}
-          onMouseLeave={stopTalking}
-          onTouchStart={(event) => {
-            event.preventDefault();
-            startTalking();
-          }}
-          onTouchEnd={(event) => {
-            event.preventDefault();
-            stopTalking();
-          }}
-          disabled={!connected}
-        >
-          Hold to Talk (Q)
-        </button>
 
         <form
           className="text-turn-form"

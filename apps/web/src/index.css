@@ -126,12 +126,6 @@ button {
   font-weight: 600;
 }
 
-.talk-button--full {
-  width: 100%;
-  padding: 18px 32px;
-  font-size: 1.05rem;
-}
-
 .status-pill {
   display: inline-flex;
   align-items: center;
