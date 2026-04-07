@@ -126,6 +126,25 @@ button {
   font-weight: 600;
 }
 
+.talk-button--active {
+  animation: pulse-ring 1.2s ease-out infinite;
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(93, 200, 255, 0.5); }
+  70%  { box-shadow: 0 0 0 10px rgba(93, 200, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(93, 200, 255, 0); }
+}
+
+.btn-separator {
+  display: inline-block;
+  width: 1px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.15);
+  align-self: center;
+  flex-shrink: 0;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -189,7 +208,7 @@ button {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 0;
+  padding: 4px 0;
 }
 
 .screenshot-empty__hint {
@@ -295,6 +314,28 @@ button {
 
 .conversation-message--streaming .conversation-message__text {
   color: rgba(247, 243, 232, 0.5);
+}
+
+.conversation-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 24px;
+  opacity: 0.35;
+}
+
+.conversation-empty__icon {
+  width: 40px;
+  height: 40px;
+  color: #f7f3e8;
+}
+
+.conversation-empty__text {
+  margin: 0;
+  font-size: 0.9rem;
+  text-align: center;
 }
 
 .error-banner {

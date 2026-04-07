@@ -99,34 +99,39 @@ export default function App() {
         </section>
 
         <div className="actions">
-          <button type="button" className="primary-button" onClick={startSession} disabled={connected}>
-            Start Conversation
-          </button>
-          <button type="button" className="secondary-button" onClick={stopSession} disabled={!connected}>
-            Stop Session
-          </button>
-          <button
-            type="button"
-            className="talk-button"
-            aria-keyshortcuts="Q"
-            onMouseDown={startTalking}
-            onMouseUp={stopTalking}
-            onMouseLeave={stopTalking}
-            onTouchStart={(event) => {
-              event.preventDefault();
-              startTalking();
-            }}
-            onTouchEnd={(event) => {
-              event.preventDefault();
-              stopTalking();
-            }}
-            disabled={!connected}
-          >
-            Hold to Talk (Q)
-          </button>
-          <button type="button" className="secondary-button" onClick={interrupt} disabled={!connected}>
-            Interrupt Playback
-          </button>
+          {!connected ? (
+            <button type="button" className="primary-button" onClick={startSession}>
+              Start Conversation
+            </button>
+          ) : (
+            <>
+              <button type="button" className="secondary-button" onClick={stopSession}>
+                Stop Session
+              </button>
+              <span className="btn-separator" aria-hidden="true" />
+              <button
+                type="button"
+                className={`talk-button${sessionState === "capturing_speech" ? " talk-button--active" : ""}`}
+                aria-keyshortcuts="Q"
+                onMouseDown={startTalking}
+                onMouseUp={stopTalking}
+                onMouseLeave={stopTalking}
+                onTouchStart={(event) => {
+                  event.preventDefault();
+                  startTalking();
+                }}
+                onTouchEnd={(event) => {
+                  event.preventDefault();
+                  stopTalking();
+                }}
+              >
+                {sessionState === "capturing_speech" ? "Recording…" : "Hold to Talk (Q)"}
+              </button>
+              <button type="button" className="secondary-button" onClick={interrupt}>
+                Interrupt Playback
+              </button>
+            </>
+          )}
         </div>
 
         <form
@@ -157,7 +162,12 @@ export default function App() {
           <p className="panel-title">Conversation</p>
           <div className="conversation-messages">
             {conversationHistory.length === 0 && !transcript && !assistantText ? (
-              <p className="panel-body">Your conversation will appear here.</p>
+              <div className="conversation-empty">
+                <svg className="conversation-empty__icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <p className="conversation-empty__text">Your conversation will appear here.</p>
+              </div>
             ) : null}
             {conversationHistory.map((msg, i) => (
               <div key={i} className={`conversation-message conversation-message--${msg.role}`}>
