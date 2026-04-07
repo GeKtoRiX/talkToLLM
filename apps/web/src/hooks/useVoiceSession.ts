@@ -241,11 +241,16 @@ export function useVoiceSession() {
       return;
     }
 
-    if (sessionStateRef.current === "capturing_speech" || sessionStateRef.current === "transcribing") {
+    const currentState = sessionStateRef.current;
+    if (currentState === "capturing_speech" || currentState === "transcribing") {
       return;
     }
 
-    if (sessionStateRef.current === "speaking") {
+    // Update ref immediately to block re-entry from duplicate events (e.g. onMouseDown + onTouchStart)
+    // before the React re-render syncs sessionStateRef via useEffect.
+    sessionStateRef.current = "capturing_speech";
+
+    if (currentState === "speaking") {
       interrupt();
     }
 

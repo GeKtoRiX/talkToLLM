@@ -1,10 +1,12 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { StatusPill } from "./components/StatusPill";
 import { acceptedImageFileInput } from "./lib/imageAttachments";
 import { useVoiceSession } from "./hooks/useVoiceSession";
 
 export default function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const conversationEndRef = useRef<HTMLDivElement | null>(null);
+
   const {
     sessionState,
     transcript,
@@ -26,18 +28,13 @@ export default function App() {
     interrupt,
   } = useVoiceSession();
 
+  useEffect(() => {
+    conversationEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [conversationHistory, transcript, assistantText]);
+
   return (
     <main className="app-shell">
       <section className="hero-card">
-        <div className="hero-copy">
-          <p className="eyebrow">English-only prototype</p>
-          <h1>Realtime Voice Loop For LLM Conversations</h1>
-          <p className="lede">
-            Push to talk, watch transcripts stream, and interrupt playback instantly. The frontend uses
-            browser audio capture, a websocket session, and a playback queue designed for barge-in.
-          </p>
-        </div>
-
         <div className="status-row">
           <StatusPill label={`State: ${sessionState}`} tone={error ? "danger" : "default"} />
           <StatusPill label={connected ? "Realtime connected" : "Disconnected"} tone={connected ? "success" : "warning"} />
@@ -190,6 +187,7 @@ export default function App() {
                 <p className="conversation-message__text">{assistantText}</p>
               </div>
             ) : null}
+            <div ref={conversationEndRef} />
           </div>
         </article>
       </section>
