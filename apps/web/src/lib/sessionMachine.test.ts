@@ -20,4 +20,8 @@ describe("sessionMachine", () => {
   it("allows recovery from error when the user starts speaking again", () => {
     expect(transitionSessionState("error", "speech_started")).toBe("capturing_speech");
   });
+
+  it("allows text turns to go directly into thinking", () => {
+    expect(transitionSessionState("listening", "text_submitted")).toBe("thinking");
+  });
 });

@@ -18,6 +18,23 @@ log() {
   printf '[mvp-e2e] %s\n' "$1"
 }
 
+read_env_value() {
+  local key="$1"
+  local file="$2"
+  if [[ ! -f "${file}" ]]; then
+    return 0
+  fi
+
+  awk -F= -v env_key="${key}" '
+    $1 == env_key {
+      value = substr($0, index($0, "=") + 1)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+      print value
+      exit
+    }
+  ' "${file}"
+}
+
 is_http_ready() {
   local url="$1"
   curl -fsS --max-time 2 "${url}" >/dev/null 2>&1
@@ -57,6 +74,13 @@ mkdir -p "${RUNTIME_DIR}"
 if [[ ! -f "${ENV_FILE}" ]]; then
   log "No local backend .env found; creating one from .env.example"
   cp "${ENV_EXAMPLE}" "${ENV_FILE}"
+fi
+
+VISION_MODEL="$(read_env_value "LLM_VISION_MODEL" "${ENV_FILE}")"
+if [[ -n "${VISION_MODEL}" ]]; then
+  log "Vision screenshot mode configured with model: ${VISION_MODEL}"
+else
+  log "Vision screenshot mode is not configured. Screenshot turns will fall back to LLM_MODEL."
 fi
 
 if is_http_ready "http://127.0.0.1:8000/healthz" && is_http_ready "http://127.0.0.1:5173"; then

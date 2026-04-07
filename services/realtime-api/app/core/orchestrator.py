@@ -43,32 +43,41 @@ class TurnOrchestrator:
             return
 
         turn_started = session.turn_started_perf or perf_counter()
+        user_text = ""
+        attachments = list(session.current_attachments)
         llm_first_token_latency: float | None = None
         tts_first_audio_latency: float | None = None
         time_to_first_audio: float | None = None
         tts_task: asyncio.Task[None] | None = None
         sentence_queue: asyncio.Queue[tuple[int, str] | None] = asyncio.Queue()
         tts_generation_started: float | None = None
+        stt_latency: float | None = None
 
         try:
-            stt = self.stt_factory()
-            await stt.start_session({"sample_rate": 16000, "language": "en"})
+            if session.current_text_input is None:
+                stt = self.stt_factory()
+                await stt.start_session({"sample_rate": 16000, "language": "en"})
 
-            audio_chunk = bytes(session.current_audio)
-            if audio_chunk:
-                await stt.append_audio(audio_chunk)
+                audio_chunk = bytes(session.current_audio)
+                if audio_chunk:
+                    await stt.append_audio(audio_chunk)
 
-            stt_started = perf_counter()
-            transcript = await stt.finalize_utterance()
-            stt_latency = perf_counter() - stt_started
-            observe_stage("stt_completed", stt_latency)
+                stt_started = perf_counter()
+                transcript = await stt.finalize_utterance()
+                stt_latency = perf_counter() - stt_started
+                observe_stage("stt_completed", stt_latency)
+                user_text = transcript.text
 
-            session.state = transition_state(session.state, "transcript_finalized")
-            session.history.append({"role": "user", "content": transcript.text})
-            await session.send_event("transcript.final", {"text": transcript.text, "isFinal": True})
+                session.state = transition_state(session.state, "transcript_finalized")
+                session.history.append({"role": "user", "content": user_text})
+                await session.send_event("transcript.final", {"text": user_text, "isFinal": True})
+            else:
+                user_text = session.current_text_input
+                session.history.append({"role": "user", "content": user_text})
+
             await session.send_event("llm.thinking", {"state": "thinking"})
 
-            messages = build_prompt_messages(self.system_prompt, session.history[:-1], transcript.text)
+            messages = build_prompt_messages(self.system_prompt, session.history[:-1], user_text, attachments)
             chunker = SentenceChunker()
 
             async def sentence_stream() -> AsyncIterator[tuple[int, str]]:
@@ -111,7 +120,7 @@ class TurnOrchestrator:
             first_token_seen = False
             interrupted = False
 
-            async for delta in self.llm.stream(messages, config={"turn_id": turn_id}):
+            async for delta in self.llm.stream(messages, config={"turn_id": turn_id, "has_images": bool(attachments)}):
                 if await session.interruption_manager.is_cancelled(turn_id):
                     interrupted = True
                     break
@@ -151,12 +160,13 @@ class TurnOrchestrator:
                     "event": "turn.completed",
                     "session_id": session.session_id,
                     "turn_id": turn_id,
-                    "stt_latency_s": round(stt_latency, 3),
+                    "stt_latency_s": round(stt_latency or 0.0, 3),
                     "llm_first_token_latency_s": round(llm_first_token_latency or 0.0, 3),
                     "tts_first_audio_latency_s": round(tts_first_audio_latency or 0.0, 3),
                     "time_to_first_audio_s": round(time_to_first_audio or 0.0, 3),
-                    "transcript_length": len(transcript.text),
+                    "transcript_length": len(user_text),
                     "response_length": len(session.response_text),
+                    "attachment_count": len(attachments),
                 },
             )
         except asyncio.CancelledError:
@@ -166,16 +176,20 @@ class TurnOrchestrator:
                 extra={"event": "turn.cancelled", "session_id": session.session_id, "turn_id": turn_id},
             )
             raise
-        except Exception:
+        except Exception as error:
             provider_errors.labels(provider="orchestrator").inc()
             session.state = transition_state(session.state, "failed")
             logger.exception(
                 "turn failed",
                 extra={"event": "turn.failed", "session_id": session.session_id, "turn_id": turn_id},
             )
+            message = str(error).strip() or "The current turn failed before playback completed."
             await session.send_event(
                 "error",
-                {"code": "TURN_FAILED", "message": "The current turn failed before playback completed."},
+                {
+                    "code": "TURN_FAILED",
+                    "message": message,
+                },
             )
             session.state = SessionState.LISTENING
         finally:
@@ -185,4 +199,6 @@ class TurnOrchestrator:
                     await tts_task
             await self.cancel_turn(turn_id)
             await session.interruption_manager.clear(turn_id)
+            session.current_text_input = None
+            session.current_attachments = []
             session.current_task = None

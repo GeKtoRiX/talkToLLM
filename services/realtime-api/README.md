@@ -38,6 +38,9 @@ TTS_PROVIDER=kokoro
 LMSTUDIO_BASE_URL=http://localhost:1234/v1
 LMSTUDIO_API_KEY=lm-studio
 LLM_MODEL=gemma-4-e4b-it
+LLM_VISION_MODEL=gemma-3-12b-it
+SCREENSHOT_MAX_BYTES=5242880
+SCREENSHOT_ALLOWED_MIME_TYPES=image/png,image/jpeg,image/webp
 STT_MODEL_ROOT=models/whisper
 KOKORO_MODEL_ROOT=models/kokoro
 KOKORO_DEVICE=cpu
@@ -54,6 +57,10 @@ KOKORO_VOICE=af_heart
 KOKORO_REPO_ID=hexgrad/Kokoro-82M
 KOKORO_DEVICE=cpu
 ```
+
+Screenshot-aware turns use `LLM_VISION_MODEL` when it is set, otherwise they fall back to `LLM_MODEL`.
+For screenshot questions to work in LM Studio, the selected model must support multimodal chat completions.
+The backend validates screenshot MIME types and size before a turn reaches the provider.
 
 The API logs turn-level latency fields for:
 

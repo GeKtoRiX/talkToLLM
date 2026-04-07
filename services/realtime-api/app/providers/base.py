@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -17,6 +18,30 @@ class TtsChunk:
     mime_type: str
     chunk_index: int
     text: str
+
+
+@dataclass(slots=True)
+class ChatTextPart:
+    text: str
+
+
+@dataclass(slots=True)
+class ChatImagePart:
+    mime_type: str
+    data_base64: str
+
+    @property
+    def data_url(self) -> str:
+        return f"data:{self.mime_type};base64,{self.data_base64}"
+
+
+ChatContentPart = ChatTextPart | ChatImagePart
+
+
+@dataclass(slots=True)
+class ChatMessage:
+    role: str
+    content_parts: list[ChatContentPart]
 
 
 class STTProvider(ABC):
@@ -35,7 +60,7 @@ class STTProvider(ABC):
 
 class LLMProvider(ABC):
     @abstractmethod
-    async def stream(self, messages: list[dict[str, str]], config: dict[str, str | int]) -> AsyncIterator[str]:
+    async def stream(self, messages: list[ChatMessage], config: dict[str, Any]) -> AsyncIterator[str]:
         raise NotImplementedError
 
     @abstractmethod

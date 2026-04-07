@@ -2,14 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import type {
   ClientEnvelope,
   ErrorPayload,
+  ImageAttachment,
   ResponseTextPayload,
   ServerEnvelope,
+  SpeechStartPayload,
+  TextSubmitPayload,
   TranscriptPayload,
   TtsChunkPayload,
 } from "@talktollm/contracts";
 import { createEnvelope } from "@talktollm/contracts";
 import type { SessionState } from "@talktollm/contracts";
 import { AudioCaptureController } from "../lib/audioCapture";
+import { attachmentToDataUrl, fileToImageAttachment, getImageFileFromClipboard } from "../lib/imageAttachments";
 import { PlaybackController } from "../lib/playbackController";
 import { transitionSessionState } from "../lib/sessionMachine";
 
@@ -21,6 +25,8 @@ export function useVoiceSession() {
   const [assistantText, setAssistantText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
+  const [textQuestion, setTextQuestion] = useState("");
+  const [activeScreenshot, setActiveScreenshot] = useState<ImageAttachment | null>(null);
 
   const websocketRef = useRef<WebSocket | null>(null);
   const audioCaptureRef = useRef(new AudioCaptureController());
@@ -28,9 +34,93 @@ export function useVoiceSession() {
   const sequenceRef = useRef(0);
   const sessionIdRef = useRef<string | null>(null);
   const turnIdRef = useRef<string | null>(null);
+  const sessionStateRef = useRef<SessionState>("idle");
+  const talkHotkeyPressedRef = useRef(false);
+  const activeScreenshotRef = useRef<ImageAttachment | null>(null);
 
   useEffect(() => {
+    sessionStateRef.current = sessionState;
+  }, [sessionState]);
+
+  useEffect(() => {
+    activeScreenshotRef.current = activeScreenshot;
+  }, [activeScreenshot]);
+
+  useEffect(() => {
+    function isEditableTarget(target: EventTarget | null): boolean {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      const tagName = target.tagName.toLowerCase();
+      return target.isContentEditable || tagName === "input" || tagName === "textarea" || tagName === "select";
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.repeat || event.key.toLowerCase() !== "q" || event.altKey || event.ctrlKey || event.metaKey) {
+        return;
+      }
+
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+
+      if (talkHotkeyPressedRef.current) {
+        return;
+      }
+
+      talkHotkeyPressedRef.current = true;
+      event.preventDefault();
+      void startTalking();
+    }
+
+    function handlePaste(event: ClipboardEvent) {
+      const imageFile = getImageFileFromClipboard(event);
+      if (!imageFile) {
+        return;
+      }
+
+      event.preventDefault();
+      void replaceActiveScreenshotFromFile(imageFile);
+    }
+
+    function releaseTalkHotkey() {
+      talkHotkeyPressedRef.current = false;
+      stopTalking();
+    }
+
+    function handleKeyUp(event: KeyboardEvent) {
+      if (event.key.toLowerCase() !== "q") {
+        return;
+      }
+
+      if (!talkHotkeyPressedRef.current) {
+        return;
+      }
+
+      event.preventDefault();
+      releaseTalkHotkey();
+    }
+
+    function handleWindowBlur() {
+      if (!talkHotkeyPressedRef.current) {
+        return;
+      }
+
+      releaseTalkHotkey();
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("paste", handlePaste);
+    window.addEventListener("blur", handleWindowBlur);
+
     return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("paste", handlePaste);
+      window.removeEventListener("blur", handleWindowBlur);
+      talkHotkeyPressedRef.current = false;
       websocketRef.current?.close();
       audioCaptureRef.current.stop();
       playbackRef.current.stop();
@@ -120,6 +210,7 @@ export function useVoiceSession() {
 
   function stopSession() {
     sendControl(createEnvelope("session.stop", {}));
+    talkHotkeyPressedRef.current = false;
     audioCaptureRef.current.stop();
     playbackRef.current.stop();
     websocketRef.current?.close();
@@ -133,13 +224,19 @@ export function useVoiceSession() {
       return;
     }
 
-    if (sessionState === "speaking") {
+    if (sessionStateRef.current === "capturing_speech" || sessionStateRef.current === "transcribing") {
+      return;
+    }
+
+    if (sessionStateRef.current === "speaking") {
       interrupt();
     }
 
     setAssistantText("");
     setSessionState((current) => transitionSessionState(current, "speech_started"));
-    sendControl(createEnvelope("speech.start", {}));
+    const screenshot = activeScreenshotRef.current;
+    const payload: SpeechStartPayload = screenshot ? { attachments: [screenshot] } : {};
+    sendControl(createEnvelope("speech.start", payload));
 
     await audioCaptureRef.current.start({
       onChunk: (chunk) => {
@@ -149,7 +246,7 @@ export function useVoiceSession() {
   }
 
   function stopTalking() {
-    if (sessionState !== "capturing_speech") {
+    if (sessionStateRef.current !== "capturing_speech") {
       return;
     }
 
@@ -162,6 +259,46 @@ export function useVoiceSession() {
     playbackRef.current.stop();
     setSessionState((current) => transitionSessionState(current, "playback_interrupted"));
     sendControl(createEnvelope("playback.interrupt", {}));
+  }
+
+  async function replaceActiveScreenshotFromFile(file: Blob & { type: string; name?: string }) {
+    try {
+      setError(null);
+      const attachment = await fileToImageAttachment(file);
+      setActiveScreenshot(attachment);
+    } catch (attachmentError) {
+      setError(attachmentError instanceof Error ? attachmentError.message : "Failed to load the screenshot.");
+    }
+  }
+
+  function clearActiveScreenshot() {
+    setActiveScreenshot(null);
+  }
+
+  function submitTextTurn() {
+    const text = textQuestion.trim();
+    if (!text) {
+      return;
+    }
+
+    if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    talkHotkeyPressedRef.current = false;
+    audioCaptureRef.current.stop();
+    if (sessionStateRef.current === "speaking") {
+      interrupt();
+    }
+
+    setError(null);
+    setAssistantText("");
+    setTranscript(text);
+    setTextQuestion("");
+    setSessionState((current) => transitionSessionState(current, "text_submitted"));
+
+    const payload: TextSubmitPayload = activeScreenshot ? { text, attachments: [activeScreenshot] } : { text };
+    sendControl(createEnvelope("text.submit", payload));
   }
 
   function sendControl(event: ClientEnvelope) {
@@ -187,11 +324,17 @@ export function useVoiceSession() {
     assistantText,
     error,
     connected,
+    textQuestion,
+    setTextQuestion,
+    activeScreenshot,
+    activeScreenshotPreviewUrl: activeScreenshot ? attachmentToDataUrl(activeScreenshot) : null,
+    replaceActiveScreenshotFromFile,
+    clearActiveScreenshot,
     startSession,
     stopSession,
     startTalking,
     stopTalking,
+    submitTextTurn,
     interrupt,
   };
 }
-

@@ -17,6 +17,7 @@ export const clientEventTypes = [
   "audio.chunk",
   "speech.start",
   "speech.end",
+  "text.submit",
   "playback.interrupt",
   "session.stop",
 ] as const;
@@ -52,8 +53,25 @@ export interface SessionStartPayload {
   language: "en";
 }
 
+export interface ImageAttachment {
+  mimeType: string;
+  dataBase64: string;
+  width: number;
+  height: number;
+  name?: string;
+}
+
+export interface SpeechStartPayload {
+  attachments?: ImageAttachment[];
+}
+
 export interface SpeechBoundaryPayload {
   reason?: string;
+}
+
+export interface TextSubmitPayload {
+  text: string;
+  attachments?: ImageAttachment[];
 }
 
 export interface TranscriptPayload {
@@ -83,8 +101,9 @@ export interface ErrorPayload {
 
 export type ClientEnvelope =
   | VoiceEventEnvelope<SessionStartPayload, "session.start">
-  | VoiceEventEnvelope<SpeechBoundaryPayload, "speech.start">
+  | VoiceEventEnvelope<SpeechStartPayload, "speech.start">
   | VoiceEventEnvelope<SpeechBoundaryPayload, "speech.end">
+  | VoiceEventEnvelope<TextSubmitPayload, "text.submit">
   | VoiceEventEnvelope<Record<string, never>, "playback.interrupt">
   | VoiceEventEnvelope<Record<string, never>, "session.stop">;
 
@@ -113,4 +132,3 @@ export function createEnvelope<TPayload, TType extends string>(
     timestamp: options?.timestamp ?? new Date().toISOString(),
   };
 }
-

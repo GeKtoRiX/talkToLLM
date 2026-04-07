@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import io
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 from typing import Any
 
@@ -19,6 +21,7 @@ WEB_BASE_URL = os.environ.get("TALKTOLLM_WEB_BASE_URL", "http://127.0.0.1:5173")
 WS_URL = os.environ.get("TALKTOLLM_WS_URL", "ws://127.0.0.1:8000/ws")
 LMSTUDIO_MODELS_URL = os.environ.get("TALKTOLLM_LMSTUDIO_MODELS_URL", "http://127.0.0.1:1234/v1/models")
 ENV_PATH = REPO_ROOT / "services" / "realtime-api" / ".env"
+VISION_FIXTURE_PATH = REPO_ROOT / "tmp" / "runtime" / "vision_e2e_42.png"
 
 
 def load_dotenv(path: Path) -> dict[str, str]:
@@ -41,6 +44,61 @@ def load_dotenv(path: Path) -> dict[str, str]:
 
 def normalize_text(value: str) -> str:
     return "".join(ch.lower() for ch in value if ch.isalnum() or ch.isspace()).strip()
+
+
+def should_run_vision_check() -> bool:
+    mode = os.environ.get("TALKTOLLM_VISION_E2E", "").strip().lower()
+    if mode in {"1", "true", "yes", "on"}:
+        return True
+    if mode in {"0", "false", "no", "off"}:
+        return False
+
+    dotenv_values = load_dotenv(ENV_PATH)
+    return bool(dotenv_values.get("LLM_VISION_MODEL"))
+
+
+def create_vision_fixture(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    script = f"""
+from pathlib import Path
+from PIL import Image, ImageDraw, ImageFont
+
+output_path = Path({str(path)!r})
+image = Image.new("RGB", (1024, 512), "white")
+draw = ImageDraw.Draw(image)
+font = None
+for candidate in (
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+):
+    try:
+        font = ImageFont.truetype(candidate, 240)
+        break
+    except Exception:
+        font = None
+if font is None:
+    font = ImageFont.load_default()
+
+text = "42"
+bbox = draw.textbbox((0, 0), text, font=font)
+text_w = bbox[2] - bbox[0]
+text_h = bbox[3] - bbox[1]
+position = ((image.width - text_w) // 2, (image.height - text_h) // 2 - 20)
+draw.text(position, text, fill="black", font=font)
+draw.rectangle((160, 120, 864, 392), outline="black", width=5)
+image.save(output_path, format="PNG")
+"""
+
+    try:
+        subprocess.run(["python3", "-c", script], check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(
+            "Failed to generate the live screenshot fixture for vision E2E. "
+            f"stderr: {error.stderr.strip()}"
+        ) from error
+
+    return path
 
 
 async def synthesize_pcm16(text: str) -> bytes:
@@ -248,11 +306,87 @@ async def run_voice_session_check() -> None:
             raise RuntimeError("Server did not close the websocket after session.stop") from error
 
 
+async def run_screenshot_turn_check() -> None:
+    fixture_path = create_vision_fixture(VISION_FIXTURE_PATH)
+    attachment = {
+        "mimeType": "image/png",
+        "dataBase64": base64.b64encode(fixture_path.read_bytes()).decode("ascii"),
+        "width": 1024,
+        "height": 512,
+        "name": fixture_path.name,
+    }
+    question = "What number is shown in the screenshot? Reply with digits only."
+
+    async with websockets.connect(WS_URL, max_size=20_000_000) as socket:
+        seq = 0
+        session_id: str | None = None
+        turn_id: str | None = None
+
+        async def send_event(event_type: str, payload: dict[str, Any]) -> None:
+            nonlocal seq, session_id, turn_id
+            seq += 1
+            await socket.send(
+                json.dumps(
+                    {
+                        "type": event_type,
+                        "sessionId": session_id,
+                        "turnId": turn_id,
+                        "seq": seq,
+                        "timestamp": "2026-04-07T00:00:00Z",
+                        "payload": payload,
+                    }
+                )
+            )
+
+        await send_event("session.start", {"sampleRate": 16000, "format": "pcm_s16le", "language": "en"})
+        started = await receive_json(socket)
+        if started["type"] != "session.started":
+            raise RuntimeError(f"Expected session.started, got {started['type']}")
+        session_id = started["sessionId"]
+
+        await send_event("text.submit", {"text": question, "attachments": [attachment]})
+        screenshot_events = await collect_until(
+            socket,
+            expected={"transcript.final", "response.text.final", "tts.chunk"},
+            timeout=150.0,
+        )
+
+        transcript_event = next(event for event in screenshot_events if event["type"] == "transcript.final")
+        response_event = next(event for event in screenshot_events if event["type"] == "response.text.final")
+        response_text = str(response_event["payload"]["text"]).strip()
+        normalized_response = normalize_text(response_text)
+        if "42" not in normalized_response:
+            raise RuntimeError(f"Vision screenshot turn returned an unexpected answer: {response_text!r}")
+
+        transcript_text = str(transcript_event["payload"]["text"]).strip()
+        if transcript_text != question:
+            raise RuntimeError(f"Unexpected screenshot transcript text: {transcript_text!r}")
+
+        await send_event("session.stop", {})
+        try:
+            while True:
+                message = await asyncio.wait_for(socket.recv(), timeout=2.0)
+                if isinstance(message, str):
+                    event = json.loads(message)
+                    if event.get("type") == "playback.stop":
+                        continue
+                raise RuntimeError(f"Unexpected websocket payload after session.stop: {message!r}")
+        except websockets.ConnectionClosedOK:
+            return
+        except TimeoutError as error:
+            raise RuntimeError("Server did not close the websocket after vision session.stop") from error
+
+
 async def main() -> None:
     print("Checking live endpoints...")
     await assert_live_endpoints()
     print("Checking websocket voice loop...")
     await run_voice_session_check()
+    if should_run_vision_check():
+        print("Checking websocket screenshot turn...")
+        await run_screenshot_turn_check()
+    else:
+        print("Skipping screenshot turn check. Set TALKTOLLM_VISION_E2E=1 or configure LLM_VISION_MODEL to enable it.")
     print("E2E MVP check passed.")
 
 

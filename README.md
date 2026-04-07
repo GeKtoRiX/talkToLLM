@@ -18,6 +18,7 @@ Web-first prototype scaffold for a two-way voice conversation app with an LLM.
 - Transcript and assistant response rendering
 - Sentence chunking and streamed TTS chunks
 - Interruption and playback stop propagation
+- Screenshot-aware voice and typed turns for LM Studio vision models
 - Mock-by-default providers so the system runs without external credentials
 - FastAPI `/healthz` and Prometheus `/metrics`
 
@@ -62,6 +63,7 @@ npm run dev:web
 ### 5. Open the UI
 
 Visit `http://localhost:5173` and hold the `Hold to Talk` button.
+You can also paste or upload one screenshot, then ask about it by voice or text.
 
 ## Environment
 
@@ -98,6 +100,9 @@ LLM_PROVIDER=lmstudio
 TTS_PROVIDER=kokoro
 LMSTUDIO_BASE_URL=http://localhost:1234/v1
 LLM_MODEL=gemma-4-e4b-it
+LLM_VISION_MODEL=gemma-3-12b-it
+SCREENSHOT_MAX_BYTES=5242880
+SCREENSHOT_ALLOWED_MIME_TYPES=image/png,image/jpeg,image/webp
 STT_MODEL_ROOT=models/whisper
 KOKORO_MODEL_ROOT=models/kokoro
 KOKORO_DEVICE=cpu
@@ -111,6 +116,8 @@ Notes:
 - The OpenAI Whisper checkpoint is stored under `models/whisper`, typically as `models/whisper/base.en.pt`.
 - The realtime TTS path uses Kokoro and emits WAV chunks that are compatible with the existing browser playback queue.
 - The local LLM path targets LM Studio's OpenAI-compatible `/v1/chat/completions` streaming endpoint and supports best-effort cancellation.
+- Screenshot turns send the active browser-side image only with the current turn, so prior history stays text-only.
+- Screenshot turns require a vision-capable LM Studio model. Set `LLM_VISION_MODEL` if your text model and vision model differ.
 - `KOKORO_DEVICE=cpu` is the intended default for this stage; Kokoro remains on CPU even when Whisper uses ROCm.
 - Turn logs now include `stt_latency_s`, `llm_first_token_latency_s`, `tts_first_audio_latency_s`, and `time_to_first_audio_s`.
 - To pre-download local STT/TTS assets into the repo, run `python scripts/prepare_local_models.py`.
@@ -150,6 +157,8 @@ That command verifies:
 - interruption handling
 - recovery on a second turn
 - websocket session stop
+
+If `LLM_VISION_MODEL` is configured, the MVP tooling also reports whether the stack is ready for screenshot turns.
 
 To stop the local stack later:
 

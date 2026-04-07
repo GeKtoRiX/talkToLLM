@@ -1,11 +1,26 @@
 from collections.abc import Iterable
 
+from app.api.protocol import ImageAttachment
+from app.providers.base import ChatImagePart, ChatMessage, ChatTextPart
 
-def build_prompt_messages(system_prompt: str, history: list[dict[str, str]], user_text: str) -> list[dict[str, str]]:
+
+def build_text_message(role: str, text: str) -> ChatMessage:
+    return ChatMessage(role=role, content_parts=[ChatTextPart(text=text)])
+
+
+def build_prompt_messages(
+    system_prompt: str,
+    history: list[dict[str, str]],
+    user_text: str,
+    attachments: list[ImageAttachment] | None = None,
+) -> list[ChatMessage]:
     rolling_history = history[-6:]
-    messages = [{"role": "system", "content": system_prompt}]
-    messages.extend(rolling_history)
-    messages.append({"role": "user", "content": user_text})
+    messages = [build_text_message("system", system_prompt)]
+    messages.extend(build_text_message(item["role"], item["content"]) for item in rolling_history)
+
+    user_parts = [ChatTextPart(text=user_text)]
+    user_parts.extend(ChatImagePart(mime_type=attachment.mimeType, data_base64=attachment.dataBase64) for attachment in attachments or [])
+    messages.append(ChatMessage(role="user", content_parts=user_parts))
     return messages
 
 
@@ -42,4 +57,3 @@ def stream_words(text: str) -> Iterable[str]:
     for index, word in enumerate(words):
         suffix = " " if index < len(words) - 1 else ""
         yield word + suffix
-

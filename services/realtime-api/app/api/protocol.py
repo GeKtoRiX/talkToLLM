@@ -20,3 +20,19 @@ class SessionStartPayload(BaseModel):
     format: Literal["pcm_s16le"] = "pcm_s16le"
     language: Literal["en"] = "en"
 
+
+class ImageAttachment(BaseModel):
+    mimeType: str
+    dataBase64: str = Field(min_length=1)
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    name: str | None = None
+
+
+class SpeechStartPayload(BaseModel):
+    attachments: list[ImageAttachment] = Field(default_factory=list)
+
+
+class TextSubmitPayload(BaseModel):
+    text: str = Field(min_length=1)
+    attachments: list[ImageAttachment] = Field(default_factory=list)

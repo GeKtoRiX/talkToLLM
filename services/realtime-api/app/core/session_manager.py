@@ -10,6 +10,7 @@ from uuid import uuid4
 
 from fastapi import WebSocket
 
+from app.api.protocol import ImageAttachment
 from app.core.interruption import InterruptionManager
 from app.core.metrics import interruption_counter, session_counter
 from app.core.state_machine import SessionState, transition_state
@@ -24,6 +25,8 @@ class SessionContext:
     state: SessionState = SessionState.IDLE
     current_turn_id: str | None = None
     current_audio: bytearray = field(default_factory=bytearray)
+    current_text_input: str | None = None
+    current_attachments: list[ImageAttachment] = field(default_factory=list)
     history: list[dict[str, str]] = field(default_factory=list)
     response_text: str = ""
     current_task: asyncio.Task[None] | None = None
@@ -74,13 +77,26 @@ class SessionManager:
         self.sessions.pop(session.session_id, None)
         session_counter.labels(event="stopped").inc()
 
-    def begin_turn(self, session: SessionContext) -> str:
+    def begin_voice_turn(self, session: SessionContext, attachments: list[ImageAttachment] | None = None) -> str:
         session.current_turn_id = str(uuid4())
         session.current_audio.clear()
+        session.current_text_input = None
+        session.current_attachments = list(attachments or [])
         session.response_text = ""
         session.turn_started_perf = perf_counter()
         session.speech_ended_perf = None
         session.state = transition_state(session.state, "speech_started")
+        return session.current_turn_id
+
+    def begin_text_turn(self, session: SessionContext, text: str, attachments: list[ImageAttachment] | None = None) -> str:
+        session.current_turn_id = str(uuid4())
+        session.current_audio.clear()
+        session.current_text_input = text
+        session.current_attachments = list(attachments or [])
+        session.response_text = ""
+        session.turn_started_perf = perf_counter()
+        session.speech_ended_perf = perf_counter()
+        session.state = transition_state(session.state, "text_submitted")
         return session.current_turn_id
 
     def append_audio(self, session: SessionContext, chunk: bytes) -> None:

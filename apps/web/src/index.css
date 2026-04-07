@@ -72,7 +72,8 @@ button {
 
 .status-row,
 .actions,
-.panels {
+.panels,
+.text-turn-form {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
@@ -155,6 +156,71 @@ button {
   padding: 24px;
 }
 
+.screenshot-card {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  display: grid;
+  gap: 16px;
+}
+
+.screenshot-card__header,
+.screenshot-card__body {
+  display: grid;
+  gap: 14px;
+}
+
+.screenshot-help,
+.screenshot-meta__line {
+  margin: 0;
+  color: rgba(247, 243, 232, 0.74);
+}
+
+.screenshot-preview,
+.screenshot-empty {
+  width: min(100%, 420px);
+  border-radius: 18px;
+}
+
+.screenshot-preview {
+  display: block;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 12, 22, 0.8);
+}
+
+.screenshot-empty {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  color: rgba(247, 243, 232, 0.6);
+}
+
+.screenshot-input {
+  display: none;
+}
+
+.text-turn-form {
+  align-items: stretch;
+}
+
+.text-turn-input {
+  min-width: min(100%, 340px);
+  flex: 1 1 300px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(6, 10, 19, 0.7);
+  color: #f7f3e8;
+  padding: 14px 18px;
+  font: inherit;
+}
+
+.text-turn-input::placeholder {
+  color: rgba(247, 243, 232, 0.45);
+}
+
 .panel-title {
   margin: 0 0 10px;
   text-transform: uppercase;
@@ -187,4 +253,3 @@ button {
     padding: 22px;
   }
 }
-
