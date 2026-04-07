@@ -33,7 +33,7 @@ function stubImageLoad(width: number, height: number) {
 }
 
 function makeFile(bytes: Uint8Array, name: string, type: string): File {
-  const file = new File([bytes], name, { type });
+  const file = new File([bytes as unknown as BlobPart], name, { type });
   // jsdom's File.arrayBuffer may be synchronous; replace with async version
   Object.defineProperty(file, "arrayBuffer", {
     configurable: true,
