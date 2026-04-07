@@ -328,8 +328,7 @@ export function useVoiceSession() {
 
     setError(null);
     setAssistantText("");
-    setTranscript("");
-    setConversationHistory((prev) => [...prev, { role: "user", text }]);
+    setTranscript(text);
     setTextQuestion("");
     setSessionState((current) => transitionSessionState(current, "text_submitted"));
 
