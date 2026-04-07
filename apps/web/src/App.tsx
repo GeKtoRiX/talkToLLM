@@ -42,15 +42,7 @@ export default function App() {
         </div>
 
         <section className="screenshot-card">
-          <div className="screenshot-card__header">
-            <div>
-              <p className="panel-title">Active Screenshot</p>
-              <p className="screenshot-help">
-                Paste a screenshot anywhere or upload a PNG, JPG, or WebP file. The latest screenshot stays active
-                until you replace or clear it.
-              </p>
-            </div>
-          </div>
+          <p className="panel-title">Active Screenshot</p>
 
           <input
             ref={fileInputRef}
@@ -67,45 +59,43 @@ export default function App() {
             }}
           />
 
-          <div className="screenshot-card__body">
-            {activeScreenshotPreviewUrl ? (
-              <img className="screenshot-preview" alt="Active screenshot preview" src={activeScreenshotPreviewUrl} />
-            ) : (
-              <div className="screenshot-empty">No screenshot attached yet.</div>
-            )}
-
-            <div className="screenshot-meta">
-              {activeScreenshot ? (
-                <>
+          {activeScreenshot ? (
+            <>
+              <div className="screenshot-card__body">
+                <img className="screenshot-preview" alt="Active screenshot preview" src={activeScreenshotPreviewUrl!} />
+                <div className="screenshot-meta">
                   <p className="screenshot-meta__line">{activeScreenshot.name || "clipboard-screenshot"}</p>
                   <p className="screenshot-meta__line">
                     {activeScreenshot.width} x {activeScreenshot.height} px
                   </p>
                   <p className="screenshot-meta__line">{activeScreenshot.mimeType}</p>
-                </>
-              ) : (
-                <>
-                  <p className="screenshot-meta__line">Use PrintScreen + paste for the fastest workflow.</p>
-                  <p className="screenshot-meta__line">You can then ask about the screenshot by voice or text.</p>
-                </>
-              )}
+                </div>
+              </div>
+              <div className="actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Replace Screenshot
+                </button>
+                <button type="button" className="secondary-button" onClick={clearActiveScreenshot}>
+                  Clear Screenshot
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="screenshot-empty">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Upload Screenshot
+              </button>
+              <span className="screenshot-empty__hint">or paste (Ctrl+V)</span>
             </div>
-          </div>
-
-          <div className="actions">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => {
-                fileInputRef.current?.click();
-              }}
-            >
-              {activeScreenshot ? "Replace Screenshot" : "Upload Screenshot"}
-            </button>
-            <button type="button" className="secondary-button" onClick={clearActiveScreenshot} disabled={!activeScreenshot}>
-              Clear Screenshot
-            </button>
-          </div>
+          )}
         </section>
 
         <div className="actions">
@@ -115,29 +105,30 @@ export default function App() {
           <button type="button" className="secondary-button" onClick={stopSession} disabled={!connected}>
             Stop Session
           </button>
-          <button
-            type="button"
-            className="talk-button"
-            aria-keyshortcuts="Q"
-            onMouseDown={startTalking}
-            onMouseUp={stopTalking}
-            onMouseLeave={stopTalking}
-            onTouchStart={(event) => {
-              event.preventDefault();
-              startTalking();
-            }}
-            onTouchEnd={(event) => {
-              event.preventDefault();
-              stopTalking();
-            }}
-            disabled={!connected}
-          >
-            Hold to Talk (Q)
-          </button>
           <button type="button" className="secondary-button" onClick={interrupt} disabled={!connected}>
-            Interrupt Playback
+            Interrupt
           </button>
         </div>
+
+        <button
+          type="button"
+          className="talk-button talk-button--full"
+          aria-keyshortcuts="Q"
+          onMouseDown={startTalking}
+          onMouseUp={stopTalking}
+          onMouseLeave={stopTalking}
+          onTouchStart={(event) => {
+            event.preventDefault();
+            startTalking();
+          }}
+          onTouchEnd={(event) => {
+            event.preventDefault();
+            stopTalking();
+          }}
+          disabled={!connected}
+        >
+          Hold to Talk (Q)
+        </button>
 
         <form
           className="text-turn-form"

@@ -126,6 +126,12 @@ button {
   font-weight: 600;
 }
 
+.talk-button--full {
+  width: 100%;
+  padding: 18px 32px;
+  font-size: 1.05rem;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -177,25 +183,24 @@ button {
   color: rgba(247, 243, 232, 0.74);
 }
 
-.screenshot-preview,
-.screenshot-empty {
-  width: min(100%, 420px);
-  border-radius: 18px;
-}
-
 .screenshot-preview {
   display: block;
+  width: min(100%, 420px);
+  border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(8, 12, 22, 0.8);
 }
 
 .screenshot-empty {
-  min-height: 180px;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  border: 1px dashed rgba(255, 255, 255, 0.16);
-  color: rgba(247, 243, 232, 0.6);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+}
+
+.screenshot-empty__hint {
+  font-size: 0.85rem;
+  color: rgba(247, 243, 232, 0.45);
 }
 
 .screenshot-input {
