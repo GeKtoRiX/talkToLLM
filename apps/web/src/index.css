@@ -238,14 +238,28 @@ button {
 .conversation-messages {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   max-height: 70vh;
   overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-right: 4px;
 }
 
 .conversation-message {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  max-width: 80%;
   gap: 4px;
+}
+
+.conversation-message--user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.conversation-message--assistant {
+  align-self: flex-start;
+  align-items: flex-start;
 }
 
 .conversation-message__role {
@@ -264,12 +278,24 @@ button {
 
 .conversation-message__text {
   margin: 0;
+  padding: 10px 14px;
+  border-radius: 18px;
   white-space: pre-wrap;
   color: rgba(247, 243, 232, 0.94);
 }
 
+.conversation-message--user .conversation-message__text {
+  background: rgba(243, 168, 77, 0.15);
+  border-bottom-right-radius: 4px;
+}
+
+.conversation-message--assistant .conversation-message__text {
+  background: rgba(93, 200, 255, 0.1);
+  border-bottom-left-radius: 4px;
+}
+
 .conversation-message--streaming .conversation-message__text {
-  color: rgba(247, 243, 232, 0.6);
+  color: rgba(247, 243, 232, 0.5);
 }
 
 .error-banner {
