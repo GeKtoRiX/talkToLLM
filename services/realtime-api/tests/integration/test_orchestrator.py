@@ -3,14 +3,16 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
 from app.api.protocol import ImageAttachment
+from app.core.config import AppSettings
 from app.core.orchestrator import TurnOrchestrator
 from app.core.session_manager import SessionContext
 from app.core.state_machine import SessionState
-from app.providers.base import ChatMessage, LLMProvider
+from app.providers.base import ChatMessage, ChatTextPart, LLMProvider
 from app.providers.llm import MockLLMProvider
 from app.providers.stt import MockWhisperProvider
 from app.providers.tts import MockKokoroProvider
@@ -156,6 +158,20 @@ class _FailingLLM(LLMProvider):
         pass
 
 
+class _CapturingLLM(LLMProvider):
+    def __init__(self) -> None:
+        self.messages: list[ChatMessage] | None = None
+        self.config: dict[str, Any] | None = None
+
+    async def stream(self, messages: list[ChatMessage], config: dict[str, Any]) -> AsyncIterator[str]:
+        self.messages = messages
+        self.config = config
+        yield "OCR only response"
+
+    async def cancel(self, request_id: str) -> None:
+        pass
+
+
 @pytest.mark.asyncio
 async def test_llm_error_sends_error_event():
     ctx, ws = _make_ctx(SessionState.THINKING)
@@ -219,3 +235,32 @@ async def test_error_turn_recovers_to_listening_state():
 async def test_cancel_turn_with_none_does_not_raise():
     orch = _make_orchestrator()
     await orch.cancel_turn(None)
+
+
+@pytest.mark.asyncio
+async def test_successful_ocr_uses_text_only_prompt_and_text_model():
+    ctx, _ = _make_ctx(SessionState.THINKING)
+    ctx.current_turn_id = "turn-ocr"
+    ctx.current_text_input = "What does this say?"
+    ctx.current_attachments = [
+        ImageAttachment(mimeType="image/png", dataBase64="ZmFrZQ==", width=100, height=100)
+    ]
+
+    llm = _CapturingLLM()
+    orch = TurnOrchestrator(
+        stt_factory=MockWhisperProvider,
+        llm=llm,
+        tts=MockKokoroProvider(),
+        system_prompt="system",
+        settings=AppSettings(_env_file=None, ocr_backend="tesseract"),
+    )
+
+    with patch("app.core.orchestrator.extract_text_from_image", return_value="# Personal information\nWilliam Brown"):
+        await orch.process_turn(ctx)
+
+    assert llm.config is not None
+    assert llm.config["has_images"] is False
+    assert llm.messages is not None
+    assert len(llm.messages[-1].content_parts) == 1
+    assert isinstance(llm.messages[-1].content_parts[0], ChatTextPart)
+    assert "Personal information" in llm.messages[-1].content_parts[0].text

@@ -41,6 +41,10 @@ LLM_MODEL=gemma-4-e4b-it
 LLM_VISION_MODEL=gemma-3-12b-it
 SCREENSHOT_MAX_BYTES=5242880
 SCREENSHOT_ALLOWED_MIME_TYPES=image/png,image/jpeg,image/webp
+OCR_ENABLED=true
+OCR_BACKEND=tesseract
+OCR_MODEL_ROOT=models/ocr
+OCR_LOCAL_FILES_ONLY=false
 STT_MODEL_ROOT=models/whisper
 KOKORO_MODEL_ROOT=models/kokoro
 KOKORO_DEVICE=cpu
@@ -59,6 +63,8 @@ KOKORO_DEVICE=cpu
 ```
 
 Screenshot-aware turns use `LLM_VISION_MODEL` when it is set, otherwise they fall back to `LLM_MODEL`.
+Successful OCR turns inject extracted Markdown into the current prompt and only fall back to the raw image when OCR fails or is disabled.
+`OCR_BACKEND=tesseract` is the safe default for local startup; switch to `auto` or `got_ocr2` after preloading GOT-OCR-2.0 or allowing hub downloads.
 For screenshot questions to work in LM Studio, the selected model must support multimodal chat completions.
 The backend validates screenshot MIME types and size before a turn reaches the provider.
 
@@ -73,7 +79,7 @@ To materialize local STT/TTS assets directly into the repository, run:
 
 ```bash
 . ../../.venv/bin/activate
-python ../../scripts/prepare_local_models.py
+python ../../scripts/tools/prepare_local_models.py
 ```
 
 This prepares both:
@@ -81,9 +87,16 @@ This prepares both:
 - `models/whisper/base.en.pt` for the ROCm Whisper backend
 - `models/kokoro/*` assets for CPU Kokoro
 
+To also pre-download GOT-OCR-2.0 locally, run:
+
+```bash
+. ../../.venv/bin/activate
+python ../../scripts/tools/prepare_local_models.py --include-ocr
+```
+
 To verify the ROCm path end-to-end, run:
 
 ```bash
 . ../../.venv/bin/activate
-PYTHONPATH=. python ../../scripts/check_whisper_rocm.py
+PYTHONPATH=. python ../../scripts/tools/check_whisper_rocm.py
 ```

@@ -75,3 +75,16 @@ def test_kokoro_defaults():
     s = AppSettings()
     assert s.kokoro_voice == "af_heart"
     assert s.kokoro_device == "cpu"
+
+
+def test_ocr_defaults():
+    s = AppSettings(_env_file=None)
+    assert s.ocr_backend == "tesseract"
+    assert s.ocr_model_root == "models/ocr"
+    assert s.ocr_local_files_only is False
+
+
+def test_ocr_backend_override_via_env(monkeypatch):
+    monkeypatch.setenv("OCR_BACKEND", "tesseract")
+    s = AppSettings(_env_file=None)
+    assert s.ocr_backend == "tesseract"

@@ -9,6 +9,14 @@ def test_sentence_chunker_emits_complete_sentences():
     assert sentences == ["Hello there.", "How are you?"]
 
 
+def test_ocr_prompt_includes_markdown_label():
+    messages = build_prompt_messages("sys", [], "what is shown?", ocr_texts=["# Heading\nsome text"])
+    text = messages[-1].content_parts[0].text
+    assert "Markdown" in text
+    assert "# Heading" in text
+    assert "what is shown?" in text
+
+
 def test_prompt_builder_keeps_system_message_and_last_turns():
     history = [{"role": "assistant", "content": f"turn-{index}"} for index in range(10)]
     messages = build_prompt_messages("system", history, "user-turn")

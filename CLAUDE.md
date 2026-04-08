@@ -28,7 +28,7 @@ apps/web/                        React + Vite frontend
 libs/contracts/                  Shared TypeScript protocol (EventEnvelope, enums)
 services/realtime-api/           FastAPI backend
   app/main.py                    Entry point, routes: /healthz /metrics /ws
-  app/core/                      orchestrator, session_manager, state_machine, config
+  app/core/                      orchestrator, session_manager, state_machine, config, ocr
   app/providers/                 stt.py  llm.py  tts.py  factory.py
   tests/
     conftest.py                  Shared fixtures
@@ -47,7 +47,7 @@ scripts/
     e2e_live_check.py            Python E2E verifier (httpx + websockets)
   tools/
     check_whisper_rocm.py        ROCm + Whisper diagnostic
-    prepare_local_models.py      Download Whisper + Kokoro model assets
+    prepare_local_models.py      Download Whisper + Kokoro assets (+ optional GOT-OCR-2.0)
 desktop/
   talkToLLM.desktop              Linux .desktop shortcut (installed to ~/.local/share/applications/)
 models/
@@ -81,6 +81,9 @@ LLM_PROVIDER=lmstudio        LLM_MODEL=gemma-4-e4b-it
 STT_PROVIDER=whisper_rocm    STT_MODEL_SIZE=base.en
 TTS_PROVIDER=kokoro          KOKORO_VOICE=af_heart
 LMSTUDIO_BASE_URL=http://localhost:1234/v1
+OCR_BACKEND=tesseract        # "tesseract" | "auto" | "got_ocr2"
+OCR_MAX_PATCHES=12           # GOT-OCR2 sub-patch count (higher = slower but denser)
+OCR_MODEL_ROOT=models/ocr    # local GOT-OCR-2.0-hf weights cache
 ```
 
 ## WebSocket protocol
@@ -95,7 +98,7 @@ Binary frames carry raw PCM audio chunks from the browser AudioWorklet.
 # Frontend unit + integration tests (Vitest)  — 47 tests
 npm run test:web
 
-# Backend tests (pytest, all three tiers)     — 70 tests
+# Backend tests (pytest, all three tiers)     — 84 tests
 cd services/realtime-api && ../../.venv/bin/pytest tests/ -v
 
 # Full live E2E (requires live stack)
@@ -103,7 +106,7 @@ npm run mvp:e2e
 ```
 
 Backend test tiers:
-- `tests/unit/`        — state machine, interruption, text, session manager, config
+- `tests/unit/`        — state machine, interruption, text, session manager, config, ocr
 - `tests/integration/` — WebSocket flows, orchestrator pipeline
 - `tests/providers/`   — mock providers, factory, LM Studio message serialization
 
@@ -115,7 +118,7 @@ Frontend test layout:
 ## MCP server
 
 `mcp_server.py` exposes project tools to Claude Code via `.claude/settings.json`.
-Registered as server `talkToLLM` with 14 tools:
+Registered as server `talkToLLM` with 15 tools:
 
 | Tool | Description |
 |------|-------------|
@@ -132,7 +135,8 @@ Registered as server `talkToLLM` with 14 tools:
 | `run_all_tests` | Run backend + frontend suites in sequence |
 | `build_frontend` | tsc + vite build → apps/web/dist/ |
 | `reinstall_desktop_shortcut` | Copy .desktop → ~/.local/share/applications/ |
-| `run_e2e` | Execute e2e_live_check.py |
+| `run_e2e` | Execute e2e_live_check.py (vision=True включает OCR-тест) |
+| `ocr_check` | Smoke-тест OCR без запуска стека |
 
 Dependencies: `mcp` installed via `.venv/bin/pip install mcp`.
 

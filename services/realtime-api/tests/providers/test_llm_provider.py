@@ -27,6 +27,28 @@ def test_build_prompt_messages_keeps_history_text_only_and_attaches_image_to_cur
     assert isinstance(messages[-1].content_parts[1], ChatImagePart)
 
 
+def test_build_prompt_messages_uses_ocr_text_instead_of_attaching_image():
+    attachment = ImageAttachment(
+        mimeType="image/png",
+        dataBase64="ZmFrZQ==",
+        width=640,
+        height=480,
+        name="worksheet.png",
+    )
+
+    messages = build_prompt_messages(
+        "system prompt",
+        [],
+        "Please summarize the screenshot.",
+        [attachment],
+        ocr_texts=["# Personal information\nWilliam Brown"],
+    )
+
+    assert len(messages[-1].content_parts) == 1
+    assert isinstance(messages[-1].content_parts[0], ChatTextPart)
+    assert "Personal information" in messages[-1].content_parts[0].text
+
+
 def test_lmstudio_message_serialization_uses_image_url_parts():
     messages = [
         ChatMessage(role="system", content_parts=[ChatTextPart(text="You are helpful.")]),

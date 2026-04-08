@@ -39,6 +39,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
             llm=llm,
             tts=tts,
             system_prompt=app_settings.assistant_system_prompt,
+            settings=app_settings,
         )
         yield
 

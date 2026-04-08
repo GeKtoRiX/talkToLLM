@@ -26,6 +26,11 @@ class AppSettings(BaseSettings):
     lmstudio_base_url: str = "http://localhost:1234/v1"
     screenshot_max_bytes: int = 5_000_000
     screenshot_allowed_mime_types: str = "image/png,image/jpeg,image/webp"
+    ocr_enabled: bool = True
+    ocr_backend: str = "tesseract"      # "tesseract" | "auto" | "got_ocr2"
+    ocr_model_root: str = "models/ocr"  # local weights cache for GOT-OCR-2.0-hf
+    ocr_local_files_only: bool = False   # mirror stt_local_files_only pattern
+    ocr_max_patches: int = 12           # sub-patch grid size for GOT-OCR2 dense layouts
     kokoro_model_root: str = "models/kokoro"
     kokoro_lang_code: str = "a"
     kokoro_voice: str = "af_heart"

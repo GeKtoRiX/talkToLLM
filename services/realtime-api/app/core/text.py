@@ -13,13 +13,23 @@ def build_prompt_messages(
     history: list[dict[str, str]],
     user_text: str,
     attachments: list[ImageAttachment] | None = None,
+    ocr_texts: list[str] | None = None,
 ) -> list[ChatMessage]:
     rolling_history = history[-6:]
     messages = [build_text_message("system", system_prompt)]
     messages.extend(build_text_message(item["role"], item["content"]) for item in rolling_history)
 
+    if ocr_texts:
+        formatted = "\n\n---\n\n".join(ocr_texts)
+        user_text = f"[Текст скриншота (Markdown, сохранён порядок чтения):\n{formatted}]\n\n{user_text}"
+
     user_parts = [ChatTextPart(text=user_text)]
-    user_parts.extend(ChatImagePart(mime_type=attachment.mimeType, data_base64=attachment.dataBase64) for attachment in attachments or [])
+    # Only attach the raw image when OCR did not produce text (fallback path).
+    if not ocr_texts:
+        user_parts.extend(
+            ChatImagePart(mime_type=att.mimeType, data_base64=att.dataBase64)
+            for att in attachments or []
+        )
     messages.append(ChatMessage(role="user", content_parts=user_parts))
     return messages
 

@@ -17,6 +17,7 @@ Tools:
   build_frontend           Build the React frontend production bundle
   reinstall_desktop_shortcut  Copy .desktop file to ~/.local/share/applications/
   run_e2e                  Run the live E2E verification suite
+  ocr_check                Smoke-test the OCR pipeline with a generated fixture image
 """
 
 from __future__ import annotations
@@ -352,7 +353,7 @@ def run_frontend_tests(extra_args: str = "") -> str:
 @mcp.tool()
 def run_all_tests(backend_args: str = "", frontend_args: str = "") -> str:
     """
-    Run the full test suite: backend pytest (70 tests) then frontend Vitest (47 tests).
+    Run the full test suite: backend pytest (84 tests) then frontend Vitest (47 tests).
 
     Args:
       backend_args:  extra flags forwarded to pytest  (e.g. "-k test_config -v")
@@ -441,21 +442,113 @@ def reinstall_desktop_shortcut() -> str:
 
 
 @mcp.tool()
-def run_e2e() -> str:
+def run_e2e(vision: bool = False) -> str:
     """
     Execute the live end-to-end verification script (e2e_live_check.py).
 
     Requires the stack to already be running (use start_stack first).
+
+    Args:
+      vision: if True, also runs the screenshot/OCR turn check
+              (sets TALKTOLLM_VISION_E2E=1).  Default: False.
+
     Returns combined stdout + stderr of the E2E run.
     """
+    env = {**os.environ}
+    if vision:
+        env["TALKTOLLM_VISION_E2E"] = "1"
+
     result = subprocess.run(
         [str(PYTHON), str(E2E_SCRIPT)],
         capture_output=True,
         text=True,
         cwd=str(REPO_ROOT),
-        timeout=180,
+        env=env,
+        timeout=300,
     )
     return (result.stdout + result.stderr).strip() or "(no output)"
+
+
+@mcp.tool()
+def ocr_check(image_path: str = "") -> str:
+    """
+    Smoke-test the OCR pipeline without requiring the full stack.
+
+    Args:
+      image_path: optional path to an existing image file to run OCR on.
+                  Defaults to test_img.png in the repo root if it exists,
+                  otherwise generates a synthetic 640×320 "HELLO OCR" fixture.
+
+    Returns the extracted text. Useful to confirm Tesseract + Pillow work
+    correctly before running a full E2E.
+    """
+    resolved = Path(image_path) if image_path else (REPO_ROOT / "test_img.png")
+
+    if resolved.exists():
+        # Run OCR directly on the provided image file
+        script = textwrap.dedent(f"""
+            import sys, base64
+            sys.path.insert(0, "services/realtime-api")
+            from app.core.ocr import extract_text_from_image
+            data_b64 = base64.b64encode(open({str(resolved)!r}, "rb").read()).decode()
+            result = extract_text_from_image(data_b64)
+            print(repr(result))
+        """)
+    else:
+        # Fallback: generate a synthetic "HELLO OCR" fixture
+        script = textwrap.dedent("""
+            import sys, base64, io
+            sys.path.insert(0, "services/realtime-api")
+
+            from PIL import Image, ImageDraw, ImageFont
+            from app.core.ocr import extract_text_from_image
+
+            img = Image.new("RGB", (640, 320), "white")
+            draw = ImageDraw.Draw(img)
+            font = None
+            for candidate in (
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+            ):
+                try:
+                    font = ImageFont.truetype(candidate, 96)
+                    break
+                except Exception:
+                    pass
+            if font is None:
+                font = ImageFont.load_default()
+
+            text = "HELLO OCR"
+            bbox = draw.textbbox((0, 0), text, font=font)
+            x = (640 - (bbox[2] - bbox[0])) // 2
+            y = (320 - (bbox[3] - bbox[1])) // 2
+            draw.text((x, y), text, fill="black", font=font)
+
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            data_b64 = base64.b64encode(buf.getvalue()).decode()
+
+            result = extract_text_from_image(data_b64)
+            print(repr(result))
+        """)
+
+    result = subprocess.run(
+        [str(PYTHON), "-c", script],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+        timeout=30,
+    )
+    if result.returncode != 0:
+        return f"FAILED\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    extracted = result.stdout.strip()
+    if resolved.exists() and not image_path:
+        # test_img.png is a textbook page — OCR reliably extracts "personal information"
+        ok = "personal" in extracted.lower() or "vocabulary" in extracted.lower() or "greetings" in extracted.lower()
+    else:
+        ok = "hello" in extracted.lower() or "ocr" in extracted.lower()
+    status = "PASS" if ok else "WARN — unexpected output"
+    return f"{status}\nImage: {resolved}\nExtracted text: {extracted}"
 
 
 # ---------------------------------------------------------------------------

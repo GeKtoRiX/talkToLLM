@@ -26,7 +26,10 @@ real = [
   "numpy>=2.0.0,<3.0.0",
   "openai-whisper>=20250625,<20260000",
   "openai>=2.30.0,<3.0.0",
-  "soundfile>=0.13.1,<1.0.0"
+  "pillow>=10.0.0,<13.0.0",
+  "pytesseract>=0.3.13,<1.0.0",
+  "soundfile>=0.13.1,<1.0.0",
+  "transformers>=4.47.0,<6.0.0"
 ]
 legacy_stt = [
   "faster-whisper>=1.2.1,<2.0.0"

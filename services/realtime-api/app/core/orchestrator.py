@@ -7,7 +7,9 @@ from collections.abc import AsyncIterator
 from time import perf_counter
 from typing import Callable
 
+from app.core.config import AppSettings
 from app.core.metrics import observe_stage, provider_errors
+from app.core.ocr import extract_text_from_image
 from app.core.state_machine import SessionState, transition_state
 from app.core.text import SentenceChunker, build_prompt_messages
 from app.providers.base import LLMProvider, STTProvider, TTSProvider
@@ -22,11 +24,13 @@ class TurnOrchestrator:
         llm: LLMProvider,
         tts: TTSProvider,
         system_prompt: str,
+        settings: AppSettings | None = None,
     ) -> None:
         self.stt_factory = stt_factory
         self.llm = llm
         self.tts = tts
         self.system_prompt = system_prompt
+        self.settings = settings or AppSettings()
 
     async def cancel_turn(self, turn_id: str | None) -> None:
         if turn_id is None:
@@ -52,6 +56,8 @@ class TurnOrchestrator:
         sentence_queue: asyncio.Queue[tuple[int, str] | None] = asyncio.Queue()
         tts_generation_started: float | None = None
         stt_latency: float | None = None
+        ocr_latency: float | None = None
+        ocr_total_chars: int = 0
 
         try:
             if session.current_text_input is None:
@@ -77,7 +83,64 @@ class TurnOrchestrator:
 
             await session.send_event("llm.thinking", {"state": "thinking"})
 
-            messages = build_prompt_messages(self.system_prompt, session.history[:-1], user_text, attachments)
+            ocr_texts: list[str] | None = None
+            if attachments and self.settings.ocr_enabled:
+                logger.info(
+                    "ocr started",
+                    extra={
+                        "event": "ocr.started",
+                        "session_id": session.session_id,
+                        "turn_id": turn_id,
+                        "attachment_count": len(attachments),
+                        "backend": self.settings.ocr_backend,
+                    },
+                )
+                ocr_t0 = perf_counter()
+                loop = asyncio.get_running_loop()
+                ocr_tasks = [
+                    loop.run_in_executor(None, extract_text_from_image, att.dataBase64, self.settings)
+                    for att in attachments
+                ]
+                raw_results = await asyncio.gather(*ocr_tasks, return_exceptions=True)
+                ocr_latency = perf_counter() - ocr_t0
+                extracted: list[str] = []
+                for result in raw_results:
+                    if isinstance(result, Exception):
+                        logger.warning(
+                            "ocr attachment failed",
+                            extra={
+                                "event": "ocr.attachment.failed",
+                                "session_id": session.session_id,
+                                "turn_id": turn_id,
+                                "error": str(result),
+                            },
+                        )
+                    elif result:
+                        extracted.append(result)
+                        ocr_total_chars += len(result)
+                        logger.debug("OCR extracted %d chars from attachment", len(result))
+                logger.info(
+                    "ocr completed",
+                    extra={
+                        "event": "ocr.completed",
+                        "session_id": session.session_id,
+                        "turn_id": turn_id,
+                        "latency_s": round(ocr_latency, 3),
+                        "total_chars": ocr_total_chars,
+                        "attachments_ok": len(extracted),
+                        "attachments_failed": len(attachments) - len(extracted),
+                    },
+                )
+                ocr_texts = extracted if extracted else None
+
+            effective_attachments = None if ocr_texts else attachments
+            messages = build_prompt_messages(
+                self.system_prompt,
+                session.history[:-1],
+                user_text,
+                attachments=effective_attachments,
+                ocr_texts=ocr_texts,
+            )
             chunker = SentenceChunker()
 
             async def sentence_stream() -> AsyncIterator[tuple[int, str]]:
@@ -120,7 +183,10 @@ class TurnOrchestrator:
             first_token_seen = False
             interrupted = False
 
-            async for delta in self.llm.stream(messages, config={"turn_id": turn_id, "has_images": bool(attachments)}):
+            async for delta in self.llm.stream(
+                messages,
+                config={"turn_id": turn_id, "has_images": bool(effective_attachments)},
+            ):
                 if await session.interruption_manager.is_cancelled(turn_id):
                     interrupted = True
                     break
@@ -161,6 +227,8 @@ class TurnOrchestrator:
                     "session_id": session.session_id,
                     "turn_id": turn_id,
                     "stt_latency_s": round(stt_latency or 0.0, 3),
+                    "ocr_latency_s": round(ocr_latency or 0.0, 3),
+                    "ocr_total_chars": ocr_total_chars,
                     "llm_first_token_latency_s": round(llm_first_token_latency or 0.0, 3),
                     "tts_first_audio_latency_s": round(tts_first_audio_latency or 0.0, 3),
                     "time_to_first_audio_s": round(time_to_first_audio or 0.0, 3),

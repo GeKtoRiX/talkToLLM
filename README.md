@@ -103,6 +103,10 @@ LLM_MODEL=gemma-4-e4b-it
 LLM_VISION_MODEL=gemma-3-12b-it
 SCREENSHOT_MAX_BYTES=5242880
 SCREENSHOT_ALLOWED_MIME_TYPES=image/png,image/jpeg,image/webp
+OCR_ENABLED=true
+OCR_BACKEND=tesseract
+OCR_MODEL_ROOT=models/ocr
+OCR_LOCAL_FILES_ONLY=false
 STT_MODEL_ROOT=models/whisper
 KOKORO_MODEL_ROOT=models/kokoro
 KOKORO_DEVICE=cpu
@@ -117,17 +121,20 @@ Notes:
 - The realtime TTS path uses Kokoro and emits WAV chunks that are compatible with the existing browser playback queue.
 - The local LLM path targets LM Studio's OpenAI-compatible `/v1/chat/completions` streaming endpoint and supports best-effort cancellation.
 - Screenshot turns send the active browser-side image only with the current turn, so prior history stays text-only.
+- When OCR succeeds, the backend injects the extracted screenshot text into the current turn and skips the raw image upload to LM Studio.
 - Screenshot turns require a vision-capable LM Studio model. Set `LLM_VISION_MODEL` if your text model and vision model differ.
+- `OCR_BACKEND=tesseract` is the safe local default; switch to `auto` or `got_ocr2` only after preloading GOT-OCR-2.0 or allowing hub downloads.
 - `KOKORO_DEVICE=cpu` is the intended default for this stage; Kokoro remains on CPU even when Whisper uses ROCm.
 - Turn logs now include `stt_latency_s`, `llm_first_token_latency_s`, `tts_first_audio_latency_s`, and `time_to_first_audio_s`.
-- To pre-download local STT/TTS assets into the repo, run `python scripts/prepare_local_models.py`.
-- To verify that Whisper is actually running on the ROCm path, run `PYTHONPATH=services/realtime-api python scripts/check_whisper_rocm.py`.
+- To pre-download local STT/TTS assets into the repo, run `python scripts/tools/prepare_local_models.py`.
+- To pre-download GOT-OCR-2.0 into `models/ocr/GOT-OCR-2.0-hf`, run `python scripts/tools/prepare_local_models.py --include-ocr`.
+- To verify that Whisper is actually running on the ROCm path, run `PYTHONPATH=services/realtime-api python scripts/tools/check_whisper_rocm.py`.
 
 ## Verification
 
 - Web tests: `npm run test:web`
 - Web build: `npm run build:web`
-- API tests: `pytest services/realtime-api/app/tests`
+- API tests: `.venv/bin/pytest services/realtime-api/tests`
 
 ## MVP Workflow
 
