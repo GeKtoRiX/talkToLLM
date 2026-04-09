@@ -10,6 +10,21 @@ FastAPI websocket orchestration service for the voice app prototype.
 - provider abstraction layer for STT, LLM, and TTS
 - mock providers enabled by default so the system works without external services
 - `/healthz` and `/metrics`
+- `/api/study/*` — vocabulary SRS REST API (SQLite-backed, parallel to the realtime pipeline)
+
+## Vocabulary Study API
+
+The study subsystem is a separate HTTP API mounted alongside the WebSocket. It does not interact with the live voice turn pipeline.
+
+| Method | Path                     | Description                                     |
+| ------ | ------------------------ | ----------------------------------------------- |
+| POST   | `/api/study/items`       | Bulk-insert items; silently skips duplicates    |
+| GET    | `/api/study/items`       | List items; optional `?status=new|learning|…`  |
+| GET    | `/api/study/due`         | Due queue ordered new → learning → review       |
+| POST   | `/api/study/review/{id}` | Submit rating (again/hard/good/easy)            |
+| GET    | `/api/study/stats`       | Counts per status, due count, total reviews     |
+
+Database: `data/study.sqlite` (path configurable via `STUDY_DB_PATH`). The file is created automatically on first start. WAL mode is enabled for safe concurrent access by both the backend and the MCP server.
 
 ## Environment
 
@@ -53,7 +68,7 @@ KOKORO_DEVICE=cpu
 Recommended first pass:
 
 ```env
-STT_MODEL_SIZE=base.en
+STT_MODEL_SIZE=medium.en
 STT_DEVICE=auto
 STT_ALLOW_CPU_FALLBACK=false
 KOKORO_LANG_CODE=a
@@ -84,7 +99,7 @@ python ../../scripts/tools/prepare_local_models.py
 
 This prepares both:
 
-- `models/whisper/base.en.pt` for the ROCm Whisper backend
+- `models/whisper/medium.en.pt` for the ROCm Whisper backend
 - `models/kokoro/*` assets for CPU Kokoro
 
 To also pre-download GOT-OCR-2.0 locally, run:

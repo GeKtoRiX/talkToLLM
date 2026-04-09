@@ -19,6 +19,8 @@ from app.core.orchestrator import TurnOrchestrator
 from app.core.session_manager import SessionManager
 from app.core.state_machine import transition_state
 from app.providers.factory import create_llm_provider, create_stt_factory, create_tts_provider
+from app.study.router import router as study_router
+from app.study.service import StudyService
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         tts = create_tts_provider(app_settings)
         app.state.settings = app_settings
         app.state.session_manager = session_manager
+        app.state.study_service = StudyService(app_settings.study_db_path_resolved)
         app.state.orchestrator = TurnOrchestrator(
             stt_factory=create_stt_factory(app_settings),
             llm=llm,
@@ -57,6 +60,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         logger.info("application shutting down", extra={"event": "app.shutdown"})
 
     app = FastAPI(title="talkToLLM realtime api", lifespan=lifespan)
+    app.include_router(study_router)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[app_settings.allowed_origin],

@@ -1,5 +1,29 @@
 from app.providers.base import ChatTextPart
-from app.core.text import SentenceChunker, build_prompt_messages
+from app.core.text import SentenceChunker, build_prompt_messages, strip_tts_noise
+
+
+def test_strip_tts_noise_removes_bold_and_italic():
+    assert strip_tts_noise("**bold** and *italic* text") == "bold and italic text"
+
+
+def test_strip_tts_noise_removes_headers():
+    assert strip_tts_noise("## Section title") == "Section title"
+
+
+def test_strip_tts_noise_removes_emoji():
+    assert strip_tts_noise("Hello! 😊 How are you? 🎉") == "Hello! How are you?"
+
+
+def test_strip_tts_noise_keeps_link_text():
+    assert strip_tts_noise("See [the docs](https://example.com) for details.") == "See the docs for details."
+
+
+def test_strip_tts_noise_removes_backticks():
+    assert strip_tts_noise("Use `print()` to debug.") == "Use print() to debug."
+
+
+def test_strip_tts_noise_plain_text_unchanged():
+    assert strip_tts_noise("Hello, world. How are you?") == "Hello, world. How are you?"
 
 
 def test_sentence_chunker_emits_complete_sentences():

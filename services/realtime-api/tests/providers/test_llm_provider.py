@@ -1,7 +1,24 @@
 from app.api.protocol import ImageAttachment
+from app.core.config import AppSettings
 from app.core.text import build_prompt_messages
 from app.providers.base import ChatImagePart, ChatMessage, ChatTextPart
 from app.providers.llm import LMStudioLLMProvider
+
+
+def _make_provider(**kwargs) -> LMStudioLLMProvider:
+    return LMStudioLLMProvider(AppSettings(_env_file=None, **kwargs))
+
+
+def test_select_model_uses_text_model_when_no_vision_model_configured():
+    provider = _make_provider(llm_model="gemma-4-e4b-it")
+    assert provider._select_model(has_images=False) == "gemma-4-e4b-it"
+    assert provider._select_model(has_images=True) == "gemma-4-e4b-it"
+
+
+def test_select_model_uses_vision_model_for_all_turns_when_configured():
+    provider = _make_provider(llm_model="gemma-4-e4b-it", llm_vision_model="qwen/qwen3.5-9b")
+    assert provider._select_model(has_images=False) == "qwen/qwen3.5-9b"
+    assert provider._select_model(has_images=True) == "qwen/qwen3.5-9b"
 
 
 def test_build_prompt_messages_keeps_history_text_only_and_attaches_image_to_current_turn():

@@ -45,6 +45,7 @@ class AppSettings(BaseSettings):
         "You are a concise English-only speaking assistant. "
         "Keep answers short and suitable for voice playback."
     )
+    study_db_path: str = "data/study.sqlite"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -61,6 +62,10 @@ class AppSettings(BaseSettings):
         if path.is_absolute():
             return path
         return (self.project_root / path).resolve()
+
+    @property
+    def study_db_path_resolved(self) -> "Path":
+        return self.resolve_path(self.study_db_path)
 
     @property
     def screenshot_allowed_mime_type_set(self) -> set[str]:

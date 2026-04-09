@@ -24,7 +24,12 @@
       "mcp__talkToLLM__build_frontend",
       "mcp__talkToLLM__reinstall_desktop_shortcut",
       "mcp__talkToLLM__run_e2e",
-      "mcp__talkToLLM__ocr_check"
+      "mcp__talkToLLM__ocr_check",
+      "mcp__talkToLLM__study_add_items",
+      "mcp__talkToLLM__study_extract_and_save",
+      "mcp__talkToLLM__study_list_due",
+      "mcp__talkToLLM__study_review_item",
+      "mcp__talkToLLM__study_stats"
     ]
   }
 }

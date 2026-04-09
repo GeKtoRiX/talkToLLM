@@ -9,13 +9,13 @@ import soundfile as sf
 import torch
 
 
-def build_settings():
+def build_settings(model_size: str):
     from app.core.config import AppSettings
 
     return AppSettings(
         stt_provider="whisper_rocm",
         stt_model_root="models/whisper",
-        stt_model_size="base.en",
+        stt_model_size=model_size,
         stt_device="auto",
         stt_local_files_only=True,
         stt_allow_cpu_fallback=False,
@@ -38,7 +38,7 @@ def print_torch_diagnostics() -> None:
 async def synthesize_test_pcm(text: str) -> bytes:
     from app.providers.tts import KokoroTTSProvider
 
-    settings = build_settings()
+    settings = build_settings(model_size="medium.en")
     provider = KokoroTTSProvider(settings)
 
     async def text_stream():
@@ -65,10 +65,10 @@ async def synthesize_test_pcm(text: str) -> bytes:
     return (pcm16 * 32767.0).astype(np.int16).tobytes()
 
 
-async def transcribe_pcm(pcm16: bytes) -> str:
+async def transcribe_pcm(pcm16: bytes, model_size: str) -> str:
     from app.providers.stt import WhisperRocmSTTProvider
 
-    settings = build_settings()
+    settings = build_settings(model_size=model_size)
     provider = WhisperRocmSTTProvider(settings)
     await provider.start_session({"sample_rate": 16000, "language": "en"})
     await provider.append_audio(pcm16)
@@ -83,11 +83,17 @@ async def main() -> None:
         default="Hello from the ROCm whisper test. This is a short English sentence.",
         help="Text that Kokoro will synthesize on CPU before Whisper transcribes it on ROCm.",
     )
+    parser.add_argument(
+        "--model-size",
+        default="medium.en",
+        help="Local Whisper checkpoint name under models/whisper, without the .pt suffix.",
+    )
     args = parser.parse_args()
 
     print_torch_diagnostics()
     pcm16 = await synthesize_test_pcm(args.text)
-    transcript = await transcribe_pcm(pcm16)
+    print(f"model_size={args.model_size}")
+    transcript = await transcribe_pcm(pcm16, args.model_size)
     print(f"transcript={transcript}")
 
 

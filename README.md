@@ -4,9 +4,10 @@ Web-first prototype scaffold for a two-way voice conversation app with an LLM.
 
 ## Workspace Layout
 
-- `apps/web`: React + Vite client with push-to-talk, websocket transport, audio capture, playback queue, and visible session state.
+- `apps/web`: React + Vite client with push-to-talk, websocket transport, audio capture, playback queue, visible session state, and vocabulary review panel.
 - `libs/contracts`: shared TypeScript contracts for session states and websocket events.
-- `services/realtime-api`: FastAPI websocket service with session orchestration, provider abstractions, mock providers, and metrics.
+- `services/realtime-api`: FastAPI websocket service with session orchestration, provider abstractions, mock providers, metrics, and vocabulary SRS REST API.
+- `data/`: local SQLite vocabulary database (`study.sqlite`, created on first run).
 
 ## What Works Today
 
@@ -21,6 +22,7 @@ Web-first prototype scaffold for a two-way voice conversation app with an LLM.
 - Screenshot-aware voice and typed turns for LM Studio vision models
 - Mock-by-default providers so the system runs without external credentials
 - FastAPI `/healthz` and Prometheus `/metrics`
+- **Vocabulary study subsystem** — Anki-like SRS review panel in the UI; MCP tools for Claude Code to save and extract vocabulary; REST API at `/api/study/*`; SQLite persistence at `data/study.sqlite`
 
 ## Current Provider Strategy
 
@@ -117,7 +119,7 @@ KOKORO_DEVICE=cpu
 Notes:
 
 - `whisper_rocm` uses `openai-whisper` on top of a ROCm-enabled PyTorch runtime.
-- The OpenAI Whisper checkpoint is stored under `models/whisper`, typically as `models/whisper/base.en.pt`.
+- The OpenAI Whisper checkpoint is stored under `models/whisper`, typically as `models/whisper/medium.en.pt`.
 - The realtime TTS path uses Kokoro and emits WAV chunks that are compatible with the existing browser playback queue.
 - The local LLM path targets LM Studio's OpenAI-compatible `/v1/chat/completions` streaming endpoint and supports best-effort cancellation.
 - Screenshot turns send the active browser-side image only with the current turn, so prior history stays text-only.
@@ -130,11 +132,42 @@ Notes:
 - To pre-download GOT-OCR-2.0 into `models/ocr/GOT-OCR-2.0-hf`, run `python scripts/tools/prepare_local_models.py --include-ocr`.
 - To verify that Whisper is actually running on the ROCm path, run `PYTHONPATH=services/realtime-api python scripts/tools/check_whisper_rocm.py`.
 
+## Vocabulary Study
+
+The study subsystem lets you save vocabulary encountered during sessions and review it with spaced repetition.
+
+**Via MCP (Claude Code):**
+
+```
+study_add_items       — save explicit words/phrases/sentences
+study_extract_and_save — extract vocabulary from a conversation exchange via LM Studio
+study_list_due        — see what's due for review
+study_review_item     — rate an item (again/hard/good/easy)
+study_stats           — counts per status + due queue size
+```
+
+**Via the UI:** the Study panel in the right column includes:
+
+- `Review` tab for due cards with Again / Hard / Good / Easy ratings
+- `All Items` tab for browsing the full list
+- inline add, edit, and delete controls for manual vocabulary management
+
+**Via REST:**
+
+```
+GET  /api/study/due           — due queue
+POST /api/study/items         — add items
+POST /api/study/review/{id}   — submit rating
+GET  /api/study/stats         — statistics
+```
+
+The database is `data/study.sqlite` (SQLite, WAL mode). The SRS algorithm is an SM-2 variant with Again / Hard / Good / Easy ratings.
+
 ## Verification
 
-- Web tests: `npm run test:web`
+- Web tests: `npm run test:web`   *(70 tests)*
 - Web build: `npm run build:web`
-- API tests: `.venv/bin/pytest services/realtime-api/tests`
+- API tests: `.venv/bin/pytest services/realtime-api/tests`   *(217 tests)*
 
 ## MVP Workflow
 

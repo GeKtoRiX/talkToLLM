@@ -18,6 +18,13 @@ Tools:
   reinstall_desktop_shortcut  Copy .desktop file to ~/.local/share/applications/
   run_e2e                  Run the live E2E verification suite
   ocr_check                Smoke-test the OCR pipeline with a generated fixture image
+
+Study tools (vocabulary SRS database):
+  study_add_items          Save explicit word/phrase/sentence items to the study DB
+  study_extract_and_save   Extract vocabulary from conversation text via LM Studio + save
+  study_list_due           List items due for review
+  study_review_item        Submit a review rating (again/hard/good/easy)
+  study_stats              Return per-status counts and due queue size
 """
 
 from __future__ import annotations
@@ -353,7 +360,7 @@ def run_frontend_tests(extra_args: str = "") -> str:
 @mcp.tool()
 def run_all_tests(backend_args: str = "", frontend_args: str = "") -> str:
     """
-    Run the full test suite: backend pytest (123 tests) then frontend Vitest (47 tests).
+    Run the full test suite: backend pytest (217 tests) then frontend Vitest (70 tests).
 
     Args:
       backend_args:  extra flags forwarded to pytest  (e.g. "-k test_config -v")
@@ -549,6 +556,223 @@ def ocr_check(image_path: str = "") -> str:
         ok = "hello" in extracted.lower() or "ocr" in extracted.lower()
     status = "PASS" if ok else "WARN — unexpected output"
     return f"{status}\nImage: {resolved}\nExtracted text: {extracted}"
+
+
+# ---------------------------------------------------------------------------
+# Study tools — call the backend REST API so all writes go through one process
+# ---------------------------------------------------------------------------
+
+STUDY_BASE = "http://127.0.0.1:8000/api/study"
+
+
+def _study_post(path: str, payload: dict) -> dict:
+    """POST to a study endpoint; raise on non-2xx with a clear message."""
+    import json as _json
+    try:
+        r = httpx.post(f"{STUDY_BASE}{path}", json=payload, timeout=10.0)
+        r.raise_for_status()
+        return r.json()
+    except httpx.HTTPStatusError as exc:
+        try:
+            detail = exc.response.json().get("detail", exc.response.text)
+        except Exception:  # noqa: BLE001
+            detail = exc.response.text
+        return {"error": f"HTTP {exc.response.status_code}: {detail}"}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)}
+
+
+def _study_get(path: str, params: dict | None = None) -> dict | list:
+    try:
+        r = httpx.get(f"{STUDY_BASE}{path}", params=params or {}, timeout=10.0)
+        r.raise_for_status()
+        return r.json()
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)}
+
+
+@mcp.tool()
+def study_add_items(
+    items: list[dict],
+    language_target: str = "en",
+    language_native: str = "ru",
+) -> dict:
+    """
+    Save explicit vocabulary items to the study database.
+
+    Each item in `items` should be a dict with at minimum:
+      target_text   — the word/phrase/sentence to memorise (required)
+      item_type     — "word" | "phrase" | "sentence"  (default "word")
+      native_text   — translation/meaning in native language
+      context_note  — optional usage note
+      example_sentence — optional example
+
+    Args:
+      items:            list of item dicts (see above)
+      language_target:  language being studied   (default "en")
+      language_native:  user's native language   (default "ru")
+
+    Returns { "saved": int, "skipped": int, "ids": list[int] }.
+    Duplicates (same target_text + item_type + language pair) are silently skipped.
+    Requires the backend to be running.
+    """
+    for item in items:
+        item.setdefault("language_target", language_target)
+        item.setdefault("language_native", language_native)
+        item.setdefault("source_kind", "mcp_manual")
+    return _study_post("/items", {"items": items})
+
+
+@mcp.tool()
+def study_extract_and_save(
+    user_text: str,
+    assistant_text: str,
+    language_target: str = "en",
+    language_native: str = "ru",
+    max_items: int = 10,
+) -> dict:
+    """
+    Extract vocabulary from a conversation exchange via LM Studio structured output,
+    then save the results to the study database.
+
+    This is explicit-save only — call it when you want to capture vocabulary from
+    a specific exchange. It does NOT run automatically on every voice turn.
+
+    Args:
+      user_text:        the user's utterance or question
+      assistant_text:   the assistant's reply
+      language_target:  language being studied   (default "en")
+      language_native:  user's native language   (default "ru")
+      max_items:        max vocabulary entries to extract  (default 10)
+
+    Returns { "saved": int, "skipped": int, "ids": list[int], "extracted": list[dict] }.
+    Requires both the backend and LM Studio to be running.
+    """
+    import json as _json
+
+    env = _read_env()
+    base_url = env.get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1").rstrip("/")
+    model = env.get("LLM_MODEL", "gemma-4-e4b-it")
+
+    extraction_schema = {
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "item_type": {
+                            "type": "string",
+                            "enum": ["word", "phrase", "sentence"],
+                        },
+                        "target_text": {"type": "string"},
+                        "native_text": {"type": "string"},
+                        "context_note": {"type": "string"},
+                        "example_sentence": {"type": "string"},
+                    },
+                    "required": ["item_type", "target_text"],
+                },
+                "maxItems": max_items,
+            }
+        },
+        "required": ["items"],
+    }
+
+    prompt = (
+        f"Extract up to {max_items} vocabulary items worth memorising from the exchange below. "
+        f"For each item provide: item_type (word/phrase/sentence), target_text (in {language_target}), "
+        f"native_text (translation to {language_native}), context_note (brief usage note), "
+        f"example_sentence (short example in {language_target}).\n\n"
+        f"User: {user_text}\nAssistant: {assistant_text}"
+    )
+
+    try:
+        r = httpx.post(
+            f"{base_url}/chat/completions",
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {"name": "vocabulary_extraction", "schema": extraction_schema, "strict": True},
+                },
+                "temperature": 0.2,
+                "max_tokens": 1024,
+            },
+            timeout=30.0,
+        )
+        r.raise_for_status()
+        content = r.json()["choices"][0]["message"]["content"]
+        extracted = _json.loads(content).get("items", [])
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"LM Studio extraction failed: {exc}", "saved": 0, "skipped": 0, "ids": []}
+
+    for item in extracted:
+        item["language_target"] = language_target
+        item["language_native"] = language_native
+        item["source_kind"] = "mcp_extract"
+        item["source_turn_text"] = user_text
+        item["source_response_text"] = assistant_text
+
+    result = _study_post("/items", {"items": extracted})
+    result["extracted"] = extracted
+    return result
+
+
+@mcp.tool()
+def study_list_due(limit: int = 20) -> list | dict:
+    """
+    List vocabulary items currently due for review.
+
+    Args:
+      limit: max items to return (default 20, max 100)
+
+    Returns a list of item dicts.  Each dict includes target_text, item_type,
+    native_text, status, ease, interval_days, next_review_at, etc.
+    Requires the backend to be running.
+    """
+    return _study_get("/due", {"limit": limit})
+
+
+@mcp.tool()
+def study_review_item(item_id: int, rating: str) -> dict:
+    """
+    Submit a review rating for one vocabulary item.
+
+    Args:
+      item_id: the integer ID from study_list_due or study_add_items
+      rating:  one of "again" | "hard" | "good" | "easy"
+
+    Rating semantics (Anki-style):
+      again — failed to recall; resets progress
+      hard  — recalled with difficulty; short interval increase
+      good  — normal recall; standard SM-2 interval
+      easy  — instant recall; accelerated interval + ease bonus
+
+    Returns the updated item dict.
+    Requires the backend to be running.
+    """
+    return _study_post(f"/review/{item_id}", {"rating": rating})
+
+
+@mcp.tool()
+def study_stats() -> dict:
+    """
+    Return study database statistics.
+
+    Returns a dict with keys:
+      new           — items not yet reviewed
+      learning      — items in active learning phase
+      review        — items in long-term review phase
+      suspended     — suspended items
+      due           — items due right now
+      total_items   — total items in DB
+      total_reviews — cumulative review events logged
+
+    Requires the backend to be running.
+    """
+    return _study_get("/stats")
 
 
 # ---------------------------------------------------------------------------

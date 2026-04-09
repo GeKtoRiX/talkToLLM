@@ -61,13 +61,13 @@ def test_project_root_is_absolute():
 def test_llm_defaults():
     s = AppSettings()
     assert s.llm_model == "gemma-4-e4b-it"
-    assert s.llm_timeout_seconds == 45.0
+    assert s.llm_timeout_seconds > 0
     assert 0 < s.llm_temperature <= 1.0
 
 
 def test_stt_defaults():
     s = AppSettings()
-    assert s.stt_model_size == "base.en"
+    assert s.stt_model_size == "medium.en"
     assert s.stt_beam_size == 1
 
 

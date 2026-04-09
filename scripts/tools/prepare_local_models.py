@@ -13,7 +13,7 @@ WHISPER_ROOT = MODELS_ROOT / "whisper"
 KOKORO_ROOT = MODELS_ROOT / "kokoro"
 OCR_ROOT = MODELS_ROOT / "ocr"
 
-WHISPER_MODEL_SIZE = "base.en"
+WHISPER_MODEL_SIZE = "medium.en"
 WHISPER_REPO_ID = f"Systran/faster-whisper-{WHISPER_MODEL_SIZE}"
 KOKORO_REPO_ID = "hexgrad/Kokoro-82M"
 KOKORO_VOICE = "af_heart"

@@ -1,11 +1,13 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StatusPill } from "./components/StatusPill";
+import { StudyPanel } from "./components/StudyPanel";
 import { acceptedImageFileInput } from "./lib/imageAttachments";
 import { useVoiceSession } from "./hooks/useVoiceSession";
 
 export default function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
+  const [topCollapsed, setTopCollapsed] = useState(false);
 
   const {
     sessionState,
@@ -34,7 +36,10 @@ export default function App() {
 
   return (
     <main className="app-shell">
-      <section className="hero-card">
+
+      {!topCollapsed && (
+        <div className="app-top">
+          <section className="hero-card">
         <div className="status-row">
           <StatusPill label={`State: ${sessionState}`} tone={error ? "danger" : "default"} />
           <StatusPill label={connected ? "Realtime connected" : "Disconnected"} tone={connected ? "success" : "warning"} />
@@ -154,13 +159,31 @@ export default function App() {
           </button>
         </form>
 
-        {error ? <p className="error-banner">{error}</p> : null}
-      </section>
+            {error ? <p className="error-banner">{error}</p> : null}
+          </section>
 
-      <section className="panels">
-        <article className="panel-card">
-          <p className="panel-title">Conversation</p>
-          <div className="conversation-messages">
+          <StudyPanel />
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="app-top-toggle"
+        aria-label={topCollapsed ? "Show controls" : "Hide controls"}
+        aria-expanded={!topCollapsed}
+        onClick={() => setTopCollapsed((v) => !v)}
+      >
+        <svg className={`app-top-toggle__icon${topCollapsed ? " app-top-toggle__icon--collapsed" : ""}`}
+          viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="1.8"
+            strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        {topCollapsed ? "Show controls" : "Hide controls"}
+      </button>
+
+      <article className="panel-card conversation-panel">
+        <p className="panel-title">Conversation</p>
+        <div className="conversation-messages">
             {conversationHistory.length === 0 && !transcript && !assistantText ? (
               <div className="conversation-empty">
                 <svg className="conversation-empty__icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -188,9 +211,8 @@ export default function App() {
               </div>
             ) : null}
             <div ref={conversationEndRef} />
-          </div>
-        </article>
-      </section>
+        </div>
+      </article>
     </main>
   );
 }

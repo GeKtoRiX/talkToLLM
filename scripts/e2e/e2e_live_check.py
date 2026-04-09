@@ -272,7 +272,10 @@ async def assert_live_endpoints() -> None:
 
         t1 = time.perf_counter()
         models_payload = await fetch_json(client, LMSTUDIO_MODELS_URL)
-        configured_model = load_dotenv(ENV_PATH).get("LLM_MODEL", "gemma-4-e4b-it")
+        _dcfg = load_dotenv(ENV_PATH)
+        _vm = _dcfg.get("LLM_VISION_MODEL", "").strip()
+        _bypass = _dcfg.get("LLM_VISION_BYPASS_OCR", "true").strip().lower() not in {"0", "false", "no", "off"}
+        configured_model = (_vm if _vm and _bypass else None) or _dcfg.get("LLM_MODEL", "gemma-4-e4b-it")
         model_ids = {item.get("id") for item in models_payload.get("data", [])}
         if configured_model not in model_ids:
             raise RuntimeError(
@@ -431,7 +434,13 @@ async def run_voice_session_check() -> None:
 
 async def run_screenshot_turn_check() -> None:
     suite_t0 = time.perf_counter()
-    log.info("[vision] === starting screenshot turn check ===")
+    dotenv_cfg = load_dotenv(ENV_PATH)
+    vision_model = dotenv_cfg.get("LLM_VISION_MODEL", "").strip()
+    bypass_ocr = dotenv_cfg.get("LLM_VISION_BYPASS_OCR", "true").strip().lower() not in {"0", "false", "no", "off"}
+    if vision_model and bypass_ocr:
+        log.info("[vision] === screenshot turn check — mode: vision model (%s, OCR bypassed) ===", vision_model)
+    else:
+        log.info("[vision] === screenshot turn check — mode: OCR → LLM ===")
 
     if CUSTOM_VISION_IMAGE is not None and CUSTOM_VISION_IMAGE.exists():
         image_path = CUSTOM_VISION_IMAGE
@@ -581,7 +590,13 @@ async def main() -> None:
     await run_voice_session_check()
 
     if should_run_vision_check():
-        log.info("[main] stage 3/3 — screenshot vision turn (OCR + LLM + TTS)")
+        _dcfg = load_dotenv(ENV_PATH)
+        _vm = _dcfg.get("LLM_VISION_MODEL", "").strip()
+        _bypass = _dcfg.get("LLM_VISION_BYPASS_OCR", "true").strip().lower() not in {"0", "false", "no", "off"}
+        if _vm and _bypass:
+            log.info("[main] stage 3/3 — screenshot vision turn (vision model=%s, OCR bypassed)", _vm)
+        else:
+            log.info("[main] stage 3/3 — screenshot vision turn (OCR + LLM + TTS)")
         await run_screenshot_turn_check()
     else:
         log.info(
