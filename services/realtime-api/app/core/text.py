@@ -1,7 +1,44 @@
-from collections.abc import Iterable
+import re
 
 from app.api.protocol import ImageAttachment
 from app.providers.base import ChatImagePart, ChatMessage, ChatTextPart
+
+# Matches characters/sequences that TTS should not read aloud.
+_MARKDOWN_RE = re.compile(
+    r"\*{1,3}|_{1,3}|~~|`{1,3}|#{1,6}\s*"  # bold, italic, strike, code, headers
+    r"|!\[.*?\]\(.*?\)"                       # images ![alt](url)
+    r"|\[([^\]]*)\]\(.*?\)"                   # links [text](url) → keep text
+    r"|<[^>]+>"                               # HTML tags
+)
+# Unicode emoji ranges (BMP + supplementary planes)
+_EMOJI_RE = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"  # emoticons
+    "\U0001F300-\U0001F5FF"  # symbols & pictographs
+    "\U0001F680-\U0001F6FF"  # transport & map
+    "\U0001F1E0-\U0001F1FF"  # flags
+    "\U00002700-\U000027BF"  # dingbats
+    "\U0001F900-\U0001F9FF"  # supplemental symbols
+    "\U00002600-\U000026FF"  # misc symbols
+    "\U00002B50-\U00002B55"  # stars
+    "\U0000FE0F"             # variation selector
+    "\U0001FA00-\U0001FA9F"  # chess / symbols ext-A
+    "]+",
+    flags=re.UNICODE,
+)
+
+
+def strip_tts_noise(text: str) -> str:
+    """Remove markdown formatting and emoji that TTS would read literally."""
+    # Replace [text](url) links with just the text
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    # Remove remaining markdown tokens
+    text = re.sub(r"\*{1,3}|_{1,3}|~~|`{1,3}|#{1,6}\s*|!\[[^\]]*\]\([^)]*\)|<[^>]+>", "", text)
+    # Remove emoji
+    text = _EMOJI_RE.sub("", text)
+    # Collapse extra whitespace
+    text = re.sub(r" {2,}", " ", text).strip()
+    return text
 
 
 def build_text_message(role: str, text: str) -> ChatMessage:
@@ -62,8 +99,3 @@ class SentenceChunker:
         return sentences
 
 
-def stream_words(text: str) -> Iterable[str]:
-    words = text.split(" ")
-    for index, word in enumerate(words):
-        suffix = " " if index < len(words) - 1 else ""
-        yield word + suffix

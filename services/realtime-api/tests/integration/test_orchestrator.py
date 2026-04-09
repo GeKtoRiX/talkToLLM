@@ -1,6 +1,7 @@
 """Integration tests for TurnOrchestrator with mock providers."""
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 from unittest.mock import patch
@@ -12,7 +13,7 @@ from app.core.config import AppSettings
 from app.core.orchestrator import TurnOrchestrator
 from app.core.session_manager import SessionContext
 from app.core.state_machine import SessionState
-from app.providers.base import ChatMessage, ChatTextPart, LLMProvider
+from app.providers.base import ChatMessage, ChatTextPart, LLMProvider, STTProvider, TranscriptResult
 from app.providers.llm import MockLLMProvider
 from app.providers.stt import MockWhisperProvider
 from app.providers.tts import MockKokoroProvider
@@ -238,6 +239,76 @@ async def test_cancel_turn_with_none_does_not_raise():
 
 
 @pytest.mark.asyncio
+async def test_vision_bypass_sends_image_directly_to_llm():
+    """When llm_vision_model is set and bypass_ocr=True, OCR must be skipped and the
+    raw image forwarded to the LLM as a ChatImagePart (has_images=True)."""
+    from app.providers.base import ChatImagePart
+
+    ctx, _ = _make_ctx(SessionState.THINKING)
+    ctx.current_turn_id = "turn-vision-bypass"
+    ctx.current_text_input = "Describe this image"
+    ctx.current_attachments = [
+        ImageAttachment(mimeType="image/png", dataBase64="ZmFrZQ==", width=100, height=100)
+    ]
+
+    llm = _CapturingLLM()
+    orch = TurnOrchestrator(
+        stt_factory=MockWhisperProvider,
+        llm=llm,
+        tts=MockKokoroProvider(),
+        system_prompt="system",
+        settings=AppSettings(
+            _env_file=None,
+            llm_vision_model="qwen/qwen3.5-9b",
+            llm_vision_bypass_ocr=True,
+        ),
+    )
+
+    with patch("app.core.orchestrator.extract_text_from_image") as mock_ocr:
+        await orch.process_turn(ctx)
+        mock_ocr.assert_not_called()
+
+    assert llm.config is not None
+    assert llm.config["has_images"] is True
+    assert llm.messages is not None
+    image_parts = [p for p in llm.messages[-1].content_parts if isinstance(p, ChatImagePart)]
+    assert len(image_parts) == 1
+    assert image_parts[0].mime_type == "image/png"
+
+
+@pytest.mark.asyncio
+async def test_vision_bypass_false_still_runs_ocr():
+    """When llm_vision_bypass_ocr=False, OCR must run even if llm_vision_model is set."""
+    ctx, _ = _make_ctx(SessionState.THINKING)
+    ctx.current_turn_id = "turn-bypass-off"
+    ctx.current_text_input = "What is shown?"
+    ctx.current_attachments = [
+        ImageAttachment(mimeType="image/png", dataBase64="ZmFrZQ==", width=100, height=100)
+    ]
+
+    llm = _CapturingLLM()
+    orch = TurnOrchestrator(
+        stt_factory=MockWhisperProvider,
+        llm=llm,
+        tts=MockKokoroProvider(),
+        system_prompt="system",
+        settings=AppSettings(
+            _env_file=None,
+            ocr_backend="tesseract",
+            llm_vision_model="qwen/qwen3.5-9b",
+            llm_vision_bypass_ocr=False,
+        ),
+    )
+
+    with patch("app.core.orchestrator.extract_text_from_image", return_value="some text") as mock_ocr:
+        await orch.process_turn(ctx)
+        mock_ocr.assert_called_once()
+
+    assert llm.config is not None
+    assert llm.config["has_images"] is False
+
+
+@pytest.mark.asyncio
 async def test_successful_ocr_uses_text_only_prompt_and_text_model():
     ctx, _ = _make_ctx(SessionState.THINKING)
     ctx.current_turn_id = "turn-ocr"
@@ -264,3 +335,134 @@ async def test_successful_ocr_uses_text_only_prompt_and_text_model():
     assert len(llm.messages[-1].content_parts) == 1
     assert isinstance(llm.messages[-1].content_parts[0], ChatTextPart)
     assert "Personal information" in llm.messages[-1].content_parts[0].text
+
+
+# ── STT timeout ───────────────────────────────────────────────────────────────
+
+
+class _HangingSTTProvider(STTProvider):
+    """STT provider that hangs indefinitely on finalize_utterance."""
+
+    async def start_session(self, config: dict) -> None:
+        pass
+
+    async def append_audio(self, chunk: bytes) -> None:
+        pass
+
+    async def finalize_utterance(self) -> TranscriptResult:
+        await asyncio.sleep(999)
+        return TranscriptResult(text="never")  # unreachable
+
+
+@pytest.mark.asyncio
+async def test_stt_timeout_sends_turn_failed_error():
+    """If STT hangs past stt_timeout_seconds an error event must be sent."""
+    ctx, ws = _make_ctx(SessionState.TRANSCRIBING)
+    ctx.current_turn_id = "turn-stt-timeout"
+    ctx.current_audio = bytearray(b"\x00\x00" * 100)
+
+    orch = TurnOrchestrator(
+        stt_factory=_HangingSTTProvider,
+        llm=MockLLMProvider(),
+        tts=MockKokoroProvider(),
+        system_prompt="system",
+        settings=AppSettings(_env_file=None, stt_timeout_seconds=0.05),
+    )
+    await orch.process_turn(ctx)
+
+    error_events = [e for e in ws.sent if e["type"] == "error"]
+    assert len(error_events) == 1
+    assert error_events[0]["payload"]["code"] == "TURN_FAILED"
+
+
+@pytest.mark.asyncio
+async def test_stt_timeout_recovers_to_listening_state():
+    ctx, _ = _make_ctx(SessionState.TRANSCRIBING)
+    ctx.current_turn_id = "turn-stt-timeout-state"
+    ctx.current_audio = bytearray(b"\x00\x00" * 100)
+
+    orch = TurnOrchestrator(
+        stt_factory=_HangingSTTProvider,
+        llm=MockLLMProvider(),
+        tts=MockKokoroProvider(),
+        system_prompt="system",
+        settings=AppSettings(_env_file=None, stt_timeout_seconds=0.05),
+    )
+    await orch.process_turn(ctx)
+
+    assert ctx.state == SessionState.LISTENING
+
+
+# ── Turn cleanup ─────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_process_turn_clears_current_task_on_completion():
+    ctx, _ = _make_ctx(SessionState.THINKING)
+    ctx.current_turn_id = "turn-cleanup"
+    ctx.current_text_input = "hello"
+    ctx.current_task = asyncio.create_task(asyncio.sleep(0))  # simulate a running task
+
+    await _make_orchestrator().process_turn(ctx)
+
+    assert ctx.current_task is None
+
+
+@pytest.mark.asyncio
+async def test_process_turn_clears_attachments_on_completion():
+    ctx, _ = _make_ctx(SessionState.THINKING)
+    ctx.current_turn_id = "turn-att-cleanup"
+    ctx.current_text_input = "hello"
+    ctx.current_attachments = [
+        ImageAttachment(mimeType="image/png", dataBase64="ZmFrZQ==", width=10, height=10)
+    ]
+
+    await _make_orchestrator().process_turn(ctx)
+
+    assert ctx.current_attachments == []
+
+
+@pytest.mark.asyncio
+async def test_process_turn_no_op_when_turn_id_is_none():
+    """process_turn must return immediately if current_turn_id is None."""
+    ctx, ws = _make_ctx(SessionState.LISTENING)
+    ctx.current_turn_id = None
+
+    await _make_orchestrator().process_turn(ctx)
+
+    assert ws.sent == []
+
+
+# ── OCR fallback to raw images on all-failure ─────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_ocr_all_fail_falls_back_to_raw_images():
+    """When every OCR attachment fails, raw images must be forwarded to LLM."""
+    from app.providers.base import ChatImagePart
+
+    ctx, _ = _make_ctx(SessionState.THINKING)
+    ctx.current_turn_id = "turn-ocr-fallback"
+    ctx.current_text_input = "What is this?"
+    ctx.current_attachments = [
+        ImageAttachment(mimeType="image/png", dataBase64="ZmFrZQ==", width=100, height=100)
+    ]
+
+    llm = _CapturingLLM()
+    orch = TurnOrchestrator(
+        stt_factory=MockWhisperProvider,
+        llm=llm,
+        tts=MockKokoroProvider(),
+        system_prompt="system",
+        settings=AppSettings(_env_file=None, ocr_backend="tesseract"),
+    )
+
+    with patch("app.core.orchestrator.extract_text_from_image", side_effect=RuntimeError("OCR failed")):
+        await orch.process_turn(ctx)
+
+    # has_images must be True because OCR failed and raw images are passed through
+    assert llm.config is not None
+    assert llm.config["has_images"] is True
+    assert llm.messages is not None
+    image_parts = [p for p in llm.messages[-1].content_parts if isinstance(p, ChatImagePart)]
+    assert len(image_parts) == 1

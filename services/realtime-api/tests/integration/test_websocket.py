@@ -199,3 +199,69 @@ def test_invalid_screenshot_attachment_returns_error():
             assert error_event["type"] == "error"
             assert "Unsupported screenshot format" in error_event["payload"]["message"]
             assert error_event["payload"]["code"] == "INVALID_ATTACHMENT"
+
+
+def test_session_stop_closes_connection():
+    app = create_mock_app()
+
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws") as websocket:
+            websocket.send_json(
+                {
+                    "type": "session.start",
+                    "sessionId": None,
+                    "turnId": None,
+                    "seq": 1,
+                    "timestamp": "2026-04-09T00:00:00Z",
+                    "payload": {"sampleRate": 16000, "format": "pcm_s16le", "language": "en"},
+                }
+            )
+            started = websocket.receive_json()
+            assert started["type"] == "session.started"
+
+            websocket.send_json(
+                {
+                    "type": "session.stop",
+                    "sessionId": started["sessionId"],
+                    "turnId": None,
+                    "seq": 2,
+                    "timestamp": "2026-04-09T00:00:01Z",
+                    "payload": {},
+                }
+            )
+            # Server should send playback.stop then close
+            event = websocket.receive_json()
+            assert event["type"] == "playback.stop"
+
+
+def test_empty_text_submit_returns_error():
+    app = create_mock_app()
+
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws") as websocket:
+            websocket.send_json(
+                {
+                    "type": "session.start",
+                    "sessionId": None,
+                    "turnId": None,
+                    "seq": 1,
+                    "timestamp": "2026-04-09T00:00:00Z",
+                    "payload": {"sampleRate": 16000, "format": "pcm_s16le", "language": "en"},
+                }
+            )
+            started = websocket.receive_json()
+
+            websocket.send_json(
+                {
+                    "type": "text.submit",
+                    "sessionId": started["sessionId"],
+                    "turnId": None,
+                    "seq": 2,
+                    "timestamp": "2026-04-09T00:00:01Z",
+                    "payload": {"text": "   ", "attachments": []},
+                }
+            )
+
+            error_event = websocket.receive_json()
+            assert error_event["type"] == "error"
+            assert error_event["payload"]["code"] == "INVALID_TEXT_INPUT"

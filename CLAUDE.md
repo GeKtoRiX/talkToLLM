@@ -28,12 +28,12 @@ apps/web/                        React + Vite frontend
 libs/contracts/                  Shared TypeScript protocol (EventEnvelope, enums)
 services/realtime-api/           FastAPI backend
   app/main.py                    Entry point, routes: /healthz /metrics /ws
-  app/core/                      orchestrator, session_manager, state_machine, config, ocr
+  app/core/                      orchestrator, session_manager, state_machine, config, logging, ocr
   app/providers/                 stt.py  llm.py  tts.py  factory.py
   tests/
     conftest.py                  Shared fixtures
     unit/                        test_state_machine, test_interruption, test_text,
-                                 test_session_manager, test_config
+                                 test_session_manager, test_config, test_logging
     integration/                 test_websocket, test_orchestrator
     providers/                   test_llm_provider, test_mock_providers, test_factory
   .env                           Active config (real providers)
@@ -51,7 +51,7 @@ scripts/
 desktop/
   talkToLLM.desktop              Linux .desktop shortcut (installed to ~/.local/share/applications/)
 models/
-  whisper/                       Whisper checkpoint (base.en.pt)
+  whisper/                       Whisper checkpoint (medium.en.pt)
   kokoro/                        Kokoro weights + voice files
 tmp/runtime/                     PID files + logs (created at launch, gitignored)
 ```
@@ -78,12 +78,14 @@ The launcher auto-kills stale processes on ports 8000 / 5173 at startup (stage 0
 
 ```
 LLM_PROVIDER=lmstudio        LLM_MODEL=gemma-4-e4b-it
-STT_PROVIDER=whisper_rocm    STT_MODEL_SIZE=base.en
+STT_PROVIDER=whisper_rocm    STT_MODEL_SIZE=medium.en
 TTS_PROVIDER=kokoro          KOKORO_VOICE=af_heart
 LMSTUDIO_BASE_URL=http://localhost:1234/v1
 OCR_BACKEND=tesseract        # "tesseract" | "auto" | "got_ocr2"
 OCR_MAX_PATCHES=12           # GOT-OCR2 sub-patch count (higher = slower but denser)
 OCR_MODEL_ROOT=models/ocr    # local GOT-OCR-2.0-hf weights cache
+STT_TIMEOUT_SECONDS=30       # hard timeout on finalize_utterance(); raises TURN_FAILED on breach
+AUDIO_BUFFER_MAX_BYTES=10000000  # 10 MB cap per turn; excess chunks are dropped
 ```
 
 ## WebSocket protocol
@@ -98,7 +100,7 @@ Binary frames carry raw PCM audio chunks from the browser AudioWorklet.
 # Frontend unit + integration tests (Vitest)  — 47 tests
 npm run test:web
 
-# Backend tests (pytest, all three tiers)     — 84 tests
+# Backend tests (pytest, all three tiers)     — 123 tests
 cd services/realtime-api && ../../.venv/bin/pytest tests/ -v
 
 # Full live E2E (requires live stack)
@@ -106,8 +108,8 @@ npm run mvp:e2e
 ```
 
 Backend test tiers:
-- `tests/unit/`        — state machine, interruption, text, session manager, config, ocr
-- `tests/integration/` — WebSocket flows, orchestrator pipeline
+- `tests/unit/`        — state machine, interruption, text, session manager, config, ocr, logging
+- `tests/integration/` — WebSocket flows, orchestrator pipeline (incl. STT timeout, OCR fallback)
 - `tests/providers/`   — mock providers, factory, LM Studio message serialization
 
 Frontend test layout:
@@ -139,6 +141,33 @@ Registered as server `talkToLLM` with 15 tools:
 | `ocr_check` | Smoke-тест OCR без запуска стека |
 
 Dependencies: `mcp` installed via `.venv/bin/pip install mcp`.
+
+## Backend logging system
+
+All backend logs are emitted as single-line JSON via `app/core/logging.py`.
+
+Key primitives:
+- **`JsonFormatter`** — every record includes `timestamp`, `level`, `logger`, `source` (file:line),
+  `message`, and any extra fields. Exceptions are serialised as `exc_type` / `exc_message` / `traceback`.
+- **`BoundLogger`** — wraps `logging.Logger` with pre-bound context (`session_id`, `turn_id`).
+  Use `log.bind(pipeline_step="stt")` to create a child without mutating the parent.
+- **`log_stage(log, step, **extra)`** — context manager; logs `step.start` / `step.end` with
+  `elapsed_ms` and yields a `meta` dict that is populated with `elapsed_ms` after the block.
+
+Pipeline event taxonomy (searchable via `event` field):
+```
+session.created / session.closed
+ws.connected / ws.disconnected / ws.event.received
+turn.start / turn.completed / turn.cancelled / turn.failed / turn.cleanup
+stt.start / stt.end / stt.timeout / stt.skip
+ocr.start / ocr.end / ocr.attachment.ok / ocr.attachment.failed / ocr.fallback
+vision.bypass_ocr
+llm.stream.start / llm.first_token / llm.delta / llm.stream.end / llm.stream.interrupted
+llm.request.start / llm.request.end / llm.cancel / llm.client.created
+tts.start / tts.first_audio / tts.chunk.sent / tts.end / tts.interrupted
+playback.interrupt
+audio.chunk.appended / audio.buffer.overflow / audio.buffer.partial_overflow
+```
 
 ## Key constraints
 

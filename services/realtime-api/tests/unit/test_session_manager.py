@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.api.protocol import ImageAttachment
+from app.core.config import AppSettings
 from app.core.session_manager import SessionContext, SessionManager
 from app.core.state_machine import SessionState
 
@@ -128,6 +129,32 @@ def test_append_audio_accumulates_bytes():
     manager.append_audio(ctx, b"\x03\x04")
 
     assert bytes(ctx.current_audio) == b"\x01\x02\x03\x04"
+
+
+def test_append_audio_rejects_chunk_when_buffer_full():
+    """Chunks that would exceed the max buffer size must be dropped silently."""
+    settings = AppSettings(_env_file=None, audio_buffer_max_bytes=6)
+    manager = SessionManager(settings=settings)
+    ctx = SessionContext(websocket=_mock_ws(), session_id="s1")
+
+    manager.append_audio(ctx, b"\x01\x02\x03\x04\x05\x06")  # fills buffer exactly
+    assert len(ctx.current_audio) == 6
+
+    manager.append_audio(ctx, b"\x07\x08")  # buffer already at limit — drop
+    assert len(ctx.current_audio) == 6
+
+
+def test_append_audio_admits_partial_chunk_up_to_limit():
+    """If only part of a chunk fits, admit the fitting portion and drop the rest."""
+    settings = AppSettings(_env_file=None, audio_buffer_max_bytes=5)
+    manager = SessionManager(settings=settings)
+    ctx = SessionContext(websocket=_mock_ws(), session_id="s1")
+
+    manager.append_audio(ctx, b"\x01\x02\x03")  # 3 bytes in
+    manager.append_audio(ctx, b"\x04\x05\x06\x07")  # only 2 bytes fit
+
+    assert len(ctx.current_audio) == 5
+    assert bytes(ctx.current_audio) == b"\x01\x02\x03\x04\x05"
 
 
 # ── mark_interrupted ─────────────────────────────────────────────────────────
