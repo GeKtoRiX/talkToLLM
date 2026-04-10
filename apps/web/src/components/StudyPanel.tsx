@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { TrainingTab } from "./study/TrainingTab";
 
 const STUDY_API = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000") + "/api/study";
 
@@ -7,23 +8,32 @@ const STUDY_API = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000")
 // ---------------------------------------------------------------------------
 export type StudyItem = {
   id: number;
-  item_type: "word" | "phrase" | "sentence";
+  item_type: "word" | "phrase" | "phrasal_verb" | "idiom" | "collocation";
   target_text: string;
   native_text: string;
   context_note: string;
   example_sentence: string;
-  status: "new" | "learning" | "review" | "suspended";
+  status: "new" | "learning" | "review" | "mastered" | "difficult" | "suspended";
   ease: number;
   interval_days: number;
   repetitions: number;
   lapses: number;
   next_review_at: string;
+  // Extended fields (added by training migration)
+  lexical_type?: string | null;
+  alternative_translations?: string;
+  topic?: string;
+  difficulty_level?: number | null;
+  tags?: string;
+  example_sentence_native?: string;
 };
 
 export type StudyStats = {
   new: number;
   learning: number;
   review: number;
+  mastered: number;
+  difficult: number;
   suspended: number;
   due: number;
   total_items: number;
@@ -31,8 +41,8 @@ export type StudyStats = {
 };
 
 type Rating = "again" | "hard" | "good" | "easy";
-type ItemType = "word" | "phrase" | "sentence";
-type ItemStatus = "new" | "learning" | "review" | "suspended";
+type ItemType = "word" | "phrase" | "phrasal_verb" | "idiom" | "collocation";
+type ItemStatus = "new" | "learning" | "review" | "mastered" | "difficult" | "suspended";
 
 // ---------------------------------------------------------------------------
 // API helpers
@@ -184,7 +194,9 @@ function AddWordForm({ onSaved }: AddWordFormProps) {
               onChange={(e) => setItemType(e.target.value as ItemType)}>
               <option value="word">word</option>
               <option value="phrase">phrase</option>
-              <option value="sentence">sentence</option>
+              <option value="phrasal_verb">phrasal verb</option>
+              <option value="idiom">idiom</option>
+              <option value="collocation">collocation</option>
             </select>
             <button type="submit" className="primary-button study-add-submit"
               disabled={status === "saving" || !targetText.trim()}>
@@ -250,7 +262,9 @@ function EditItemForm({ item, onSaved, onCancel }: EditItemFormProps) {
           value={itemType} onChange={(e) => setItemType(e.target.value as ItemType)}>
           <option value="word">word</option>
           <option value="phrase">phrase</option>
-          <option value="sentence">sentence</option>
+          <option value="phrasal_verb">phrasal verb</option>
+          <option value="idiom">idiom</option>
+          <option value="collocation">collocation</option>
         </select>
       </div>
       <input aria-label="Translation" className="study-add-input" type="text"
@@ -268,6 +282,8 @@ function EditItemForm({ item, onSaved, onCancel }: EditItemFormProps) {
           <option value="new">new</option>
           <option value="learning">learning</option>
           <option value="review">review</option>
+          <option value="mastered">mastered</option>
+          <option value="difficult">difficult</option>
           <option value="suspended">suspended</option>
         </select>
         <div className="study-edit-actions">
@@ -539,7 +555,7 @@ function ReviewView({ onStatsChange }: ReviewViewProps) {
 // ---------------------------------------------------------------------------
 // StudyPanel (tabs)
 // ---------------------------------------------------------------------------
-type Tab = "review" | "items";
+type Tab = "review" | "items" | "training";
 
 export function StudyPanel() {
   const [tab, setTab] = useState<Tab>("review");
@@ -566,12 +582,18 @@ export function StudyPanel() {
         >
           All Items
         </button>
+        <button
+          type="button"
+          className={`study-tab${tab === "training" ? " study-tab--active" : ""}`}
+          onClick={() => setTab("training")}
+        >
+          Training
+        </button>
       </div>
 
-      {tab === "review"
-        ? <ReviewView key={`review-${statsVersion}`} onStatsChange={bumpStats} />
-        : <AllItemsView onStatsChange={bumpStats} />
-      }
+      {tab === "review" && <ReviewView key={`review-${statsVersion}`} onStatsChange={bumpStats} />}
+      {tab === "items" && <AllItemsView onStatsChange={bumpStats} />}
+      {tab === "training" && <TrainingTab />}
     </article>
   );
 }

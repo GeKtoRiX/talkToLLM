@@ -19,12 +19,17 @@ Tools:
   run_e2e                  Run the live E2E verification suite
   ocr_check                Smoke-test the OCR pipeline with a generated fixture image
 
-Study tools (vocabulary SRS database):
-  study_add_items          Save explicit word/phrase/sentence items to the study DB
+Study tools (vocabulary SRS — Review/All Items tabs):
+  study_add_items          Save word/phrase/phrasal_verb/idiom/collocation items to DB
   study_extract_and_save   Extract vocabulary from conversation text via LM Studio + save
-  study_list_due           List items due for review
+  study_list_due           List items due for SRS review
   study_review_item        Submit a review rating (again/hard/good/easy)
   study_stats              Return per-status counts and due queue size
+
+Training tools (active-recall training module):
+  training_create_session  Start a training session (mode, filters, target_count)
+  training_get_results     Get session results after completion
+  training_user_stats      Return mastery/progress statistics for all items
 """
 
 from __future__ import annotations
@@ -366,7 +371,8 @@ def run_all_tests(backend_args: str = "", frontend_args: str = "") -> str:
       backend_args:  extra flags forwarded to pytest  (e.g. "-k test_config -v")
       frontend_args: extra flags forwarded to vitest  (e.g. "--reporter=verbose")
 
-    Returns a combined report with pass/fail counts for each suite.
+    Returns a combined report with pass/fail counts for each suite
+    (backend ~362 tests, frontend ~107 tests).
     """
     sections: list[str] = []
 
@@ -601,11 +607,14 @@ def study_add_items(
     Save explicit vocabulary items to the study database.
 
     Each item in `items` should be a dict with at minimum:
-      target_text   — the word/phrase/sentence to memorise (required)
-      item_type     — "word" | "phrase" | "sentence"  (default "word")
+      target_text   — the word/phrase/idiom to memorise (required)
+      item_type     — "word" | "phrase" | "phrasal_verb" | "idiom" | "collocation"
+                      (default "word")
       native_text   — translation/meaning in native language
       context_note  — optional usage note
-      example_sentence — optional example
+      example_sentence — optional example sentence
+      lexical_type  — optional part-of-speech: "noun" | "verb" | "adjective" | ...
+      topic         — optional topic/category string
 
     Args:
       items:            list of item dicts (see above)
@@ -664,12 +673,13 @@ def study_extract_and_save(
                     "properties": {
                         "item_type": {
                             "type": "string",
-                            "enum": ["word", "phrase", "sentence"],
+                            "enum": ["word", "phrase", "phrasal_verb", "idiom", "collocation"],
                         },
                         "target_text": {"type": "string"},
                         "native_text": {"type": "string"},
                         "context_note": {"type": "string"},
                         "example_sentence": {"type": "string"},
+                        "lexical_type": {"type": "string"},
                     },
                     "required": ["item_type", "target_text"],
                 },
@@ -681,9 +691,11 @@ def study_extract_and_save(
 
     prompt = (
         f"Extract up to {max_items} vocabulary items worth memorising from the exchange below. "
-        f"For each item provide: item_type (word/phrase/sentence), target_text (in {language_target}), "
+        f"For each item provide: item_type (word/phrase/phrasal_verb/idiom/collocation), "
+        f"target_text (in {language_target}), "
         f"native_text (translation to {language_native}), context_note (brief usage note), "
-        f"example_sentence (short example in {language_target}).\n\n"
+        f"example_sentence (short example in {language_target}), "
+        f"lexical_type (noun/verb/adjective/adverb/phrasal_verb/idiom/collocation, if applicable).\n\n"
         f"User: {user_text}\nAssistant: {assistant_text}"
     )
 
@@ -765,6 +777,8 @@ def study_stats() -> dict:
       new           — items not yet reviewed
       learning      — items in active learning phase
       review        — items in long-term review phase
+      mastered      — items marked as mastered by the training module
+      difficult     — items flagged as difficult
       suspended     — suspended items
       due           — items due right now
       total_items   — total items in DB
@@ -773,6 +787,122 @@ def study_stats() -> dict:
     Requires the backend to be running.
     """
     return _study_get("/stats")
+
+
+# ---------------------------------------------------------------------------
+# Training tools — active-recall training module (/api/training/*)
+# ---------------------------------------------------------------------------
+
+TRAINING_BASE = "http://127.0.0.1:8000/api/training"
+
+
+def _training_post(path: str, payload: dict) -> dict:
+    try:
+        r = httpx.post(f"{TRAINING_BASE}{path}", json=payload, timeout=15.0)
+        r.raise_for_status()
+        if r.status_code == 204:
+            return {}
+        return r.json()
+    except httpx.HTTPStatusError as exc:
+        try:
+            detail = exc.response.json().get("detail", exc.response.text)
+        except Exception:  # noqa: BLE001
+            detail = exc.response.text
+        return {"error": f"HTTP {exc.response.status_code}: {detail}"}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)}
+
+
+def _training_get(path: str, params: dict | None = None) -> dict | list:
+    try:
+        r = httpx.get(f"{TRAINING_BASE}{path}", params=params or {}, timeout=10.0)
+        r.raise_for_status()
+        return r.json()
+    except Exception as exc:  # noqa: BLE001
+        return {"error": str(exc)}
+
+
+@mcp.tool()
+def training_create_session(
+    mode: str = "auto",
+    target_count: int = 20,
+    item_type: str = "",
+    lexical_type: str = "",
+    topic: str = "",
+) -> dict:
+    """
+    Start a new active-recall training session.
+
+    The session is created in the backend and the first question is returned
+    immediately. Use training_get_results after the user has gone through the
+    session in the UI, or to inspect completed sessions.
+
+    Args:
+      mode:          one of "auto" | "new_only" | "difficult" | "overdue" |
+                     "errors" | "by_type"  (default "auto")
+      target_count:  how many questions to generate  (default 20, max 100)
+      item_type:     optional filter — "word" | "phrase" | "phrasal_verb" |
+                     "idiom" | "collocation"  (leave empty for all)
+      lexical_type:  optional part-of-speech filter — "noun" | "verb" | ...
+                     (leave empty for all)
+      topic:         optional topic/category string filter
+
+    Returns { "session": {...}, "question": {...} | null }.
+    Requires the backend to be running.
+    """
+    filters: dict = {}
+    if item_type:
+        filters["item_type"] = item_type
+    if lexical_type:
+        filters["lexical_type"] = lexical_type
+    if topic:
+        filters["topic"] = topic
+
+    payload: dict = {"mode": mode, "target_count": target_count}
+    if filters:
+        payload["filters"] = filters
+
+    return _training_post("/sessions", payload)
+
+
+@mcp.tool()
+def training_get_results(session_id: int) -> dict:
+    """
+    Retrieve the results for a completed (or active) training session.
+
+    Returns accuracy %, correct/wrong counts, newly mastered items,
+    error items, per-exercise-type breakdown, and duration.
+
+    Args:
+      session_id: integer ID returned by training_create_session
+
+    Requires the backend to be running.
+    """
+    return _training_get(f"/sessions/{session_id}/results")
+
+
+@mcp.tool()
+def training_user_stats() -> dict:
+    """
+    Return global training progress statistics for all vocabulary items.
+
+    Returns a dict with:
+      total_items              — total items in DB
+      mastered                 — items that passed mastery criteria
+      learning                 — items in active learning
+      difficult                — items flagged as difficult
+      new                      — items not yet trained
+      review                   — items in long-term review
+      suspended                — suspended items
+      by_lexical_type          — counts per part-of-speech
+      by_item_type             — counts per item type
+      total_training_sessions  — cumulative sessions completed
+      total_questions_answered — cumulative questions answered
+      overall_accuracy_pct     — accuracy across all time
+
+    Requires the backend to be running.
+    """
+    return _training_get("/stats/user")
 
 
 # ---------------------------------------------------------------------------

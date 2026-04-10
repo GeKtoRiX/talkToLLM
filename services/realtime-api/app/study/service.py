@@ -12,8 +12,13 @@ from .db import get_db, init_db
 # Constants
 # ---------------------------------------------------------------------------
 VALID_RATINGS = {"again", "hard", "good", "easy"}
-VALID_STATUSES = {"new", "learning", "review", "suspended"}
-VALID_ITEM_TYPES = {"word", "phrase", "sentence"}
+VALID_STATUSES = {"new", "learning", "review", "mastered", "difficult", "suspended"}
+VALID_ITEM_TYPES = {"word", "phrase", "phrasal_verb", "idiom", "collocation"}
+VALID_LEXICAL_TYPES = {
+    "noun", "verb", "adjective", "adverb", "pronoun", "preposition",
+    "conjunction", "interjection", "article", "numeral",
+    "modal_verb", "auxiliary_verb", "phrasal_verb", "idiom", "collocation",
+}
 VALID_SOURCE_KINDS = {"manual", "mcp_extract", "mcp_manual"}
 
 EASE_MIN = 1.3
@@ -168,26 +173,45 @@ class StudyService:
     def get_items(
         self,
         status: str | None = None,
+        lexical_type: str | None = None,
+        item_type: str | None = None,
+        topic: str | None = None,
+        difficulty_min: int | None = None,
+        difficulty_max: int | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        """Return items ordered by created_at DESC, optionally filtered by status."""
+        """Return items ordered by created_at DESC with optional filters."""
+        conditions: list[str] = []
+        params: list[Any] = []
+
+        if status:
+            conditions.append("status = ?")
+            params.append(status)
+        if lexical_type:
+            conditions.append("lexical_type = ?")
+            params.append(lexical_type)
+        if item_type:
+            conditions.append("item_type = ?")
+            params.append(item_type)
+        if topic:
+            conditions.append("topic = ?")
+            params.append(topic)
+        if difficulty_min is not None:
+            conditions.append("difficulty_level >= ?")
+            params.append(difficulty_min)
+        if difficulty_max is not None:
+            conditions.append("difficulty_level <= ?")
+            params.append(difficulty_max)
+
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        params.extend([limit, offset])
+
         with get_db(self.db_path) as conn:
-            if status:
-                rows = conn.execute(
-                    """SELECT * FROM study_items
-                       WHERE status = ?
-                       ORDER BY created_at DESC
-                       LIMIT ? OFFSET ?""",
-                    (status, limit, offset),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """SELECT * FROM study_items
-                       ORDER BY created_at DESC
-                       LIMIT ? OFFSET ?""",
-                    (limit, offset),
-                ).fetchall()
+            rows = conn.execute(
+                f"SELECT * FROM study_items {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",  # noqa: S608
+                params,
+            ).fetchall()
         return [dict(r) for r in rows]
 
     # ------------------------------------------------------------------
@@ -277,8 +301,13 @@ class StudyService:
                       example_sentence, status.
         Raises ValueError for unknown item_id or invalid field values.
         """
-        EDITABLE = {"item_type", "target_text", "native_text", "context_note",
-                    "example_sentence", "status"}
+        EDITABLE = {
+            "item_type", "target_text", "native_text", "context_note",
+            "example_sentence", "status",
+            # new vocabulary-metadata fields
+            "lexical_type", "alternative_translations", "topic",
+            "difficulty_level", "tags", "example_sentence_native",
+        }
         filtered = {k: v for k, v in updates.items() if k in EDITABLE}
         if not filtered:
             raise ValueError("No editable fields provided.")
@@ -287,6 +316,9 @@ class StudyService:
             raise ValueError(f"Invalid item_type '{filtered['item_type']}'.")
         if "status" in filtered and filtered["status"] not in VALID_STATUSES:
             raise ValueError(f"Invalid status '{filtered['status']}'.")
+        if "lexical_type" in filtered and filtered["lexical_type"] is not None:
+            if filtered["lexical_type"] not in VALID_LEXICAL_TYPES:
+                raise ValueError(f"Invalid lexical_type '{filtered['lexical_type']}'.")
         if "target_text" in filtered:
             filtered["target_text"] = str(filtered["target_text"]).strip()
             if not filtered["target_text"]:
@@ -354,7 +386,8 @@ class StudyService:
 
         result: dict[str, Any] = {s: 0 for s in VALID_STATUSES}
         for row in status_rows:
-            result[row["status"]] = row["cnt"]
+            if row["status"] in result:
+                result[row["status"]] = row["cnt"]
         result["due"] = due_count
         result["total_reviews"] = total_reviews
         result["total_items"] = total_items

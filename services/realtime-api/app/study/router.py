@@ -1,7 +1,7 @@
 """FastAPI router for the vocabulary study subsystem."""
 from __future__ import annotations
 
-from typing import Any, Literal, Optional
+from typing import Any, List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -20,7 +20,7 @@ def _svc(request: Request) -> StudyService:
 # ---------------------------------------------------------------------------
 
 class StudyItemCreate(BaseModel):
-    item_type: Literal["word", "phrase", "sentence"] = "word"
+    item_type: Literal["word", "phrase", "phrasal_verb", "idiom", "collocation"] = "word"
     target_text: str = Field(min_length=1)
     native_text: str = ""
     context_note: str = ""
@@ -30,6 +30,13 @@ class StudyItemCreate(BaseModel):
     source_response_text: str = ""
     language_target: str = "en"
     language_native: str = "ru"
+    # vocabulary metadata (optional)
+    lexical_type: Optional[str] = None
+    alternative_translations: List[str] = []
+    topic: str = ""
+    difficulty_level: Optional[int] = Field(default=None, ge=1, le=5)
+    tags: List[str] = []
+    example_sentence_native: str = ""
 
 
 class AddItemsRequest(BaseModel):
@@ -41,12 +48,21 @@ class ReviewRequest(BaseModel):
 
 
 class UpdateItemRequest(BaseModel):
-    item_type: Optional[Literal["word", "phrase", "sentence"]] = None
+    item_type: Optional[Literal["word", "phrase", "phrasal_verb", "idiom", "collocation"]] = None
     target_text: Optional[str] = None
     native_text: Optional[str] = None
     context_note: Optional[str] = None
     example_sentence: Optional[str] = None
-    status: Optional[Literal["new", "learning", "review", "suspended"]] = None
+    status: Optional[Literal[
+        "new", "learning", "review", "mastered", "difficult", "suspended"
+    ]] = None
+    # vocabulary metadata
+    lexical_type: Optional[str] = None
+    alternative_translations: Optional[List[str]] = None
+    topic: Optional[str] = None
+    difficulty_level: Optional[int] = Field(default=None, ge=1, le=5)
+    tags: Optional[List[str]] = None
+    example_sentence_native: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -62,12 +78,26 @@ def add_items(body: AddItemsRequest, request: Request) -> dict[str, Any]:
 @router.get("/items")
 def list_items(
     request: Request,
-    status: str | None = Query(None, description="Filter by status: new|learning|review|suspended"),
+    status: str | None = Query(None),
+    lexical_type: str | None = Query(None),
+    item_type: str | None = Query(None),
+    topic: str | None = Query(None),
+    difficulty_min: Optional[int] = Query(None, ge=1, le=5),
+    difficulty_max: Optional[int] = Query(None, ge=1, le=5),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> list[dict[str, Any]]:
-    """Return study items, optionally filtered by status."""
-    return _svc(request).get_items(status=status, limit=limit, offset=offset)
+    """Return study items with optional filters."""
+    return _svc(request).get_items(
+        status=status,
+        lexical_type=lexical_type,
+        item_type=item_type,
+        topic=topic,
+        difficulty_min=difficulty_min,
+        difficulty_max=difficulty_max,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/due")

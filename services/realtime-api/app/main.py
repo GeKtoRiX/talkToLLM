@@ -21,6 +21,8 @@ from app.core.state_machine import transition_state
 from app.providers.factory import create_llm_provider, create_stt_factory, create_tts_provider
 from app.study.router import router as study_router
 from app.study.service import StudyService
+from app.training.router import router as training_router
+from app.training.service import TrainingService
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,9 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         app.state.settings = app_settings
         app.state.session_manager = session_manager
         app.state.study_service = StudyService(app_settings.study_db_path_resolved)
+        # TrainingService must be initialised after StudyService so migrate_db
+        # runs after init_db has created the base tables.
+        app.state.training_service = TrainingService(app_settings.study_db_path_resolved)
         app.state.orchestrator = TurnOrchestrator(
             stt_factory=create_stt_factory(app_settings),
             llm=llm,
@@ -61,6 +66,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
 
     app = FastAPI(title="talkToLLM realtime api", lifespan=lifespan)
     app.include_router(study_router)
+    app.include_router(training_router)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[app_settings.allowed_origin],

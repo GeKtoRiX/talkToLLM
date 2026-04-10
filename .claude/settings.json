@@ -29,7 +29,10 @@
       "mcp__talkToLLM__study_extract_and_save",
       "mcp__talkToLLM__study_list_due",
       "mcp__talkToLLM__study_review_item",
-      "mcp__talkToLLM__study_stats"
+      "mcp__talkToLLM__study_stats",
+      "mcp__talkToLLM__training_create_session",
+      "mcp__talkToLLM__training_get_results",
+      "mcp__talkToLLM__training_user_stats"
     ]
   }
 }
