@@ -7,13 +7,13 @@ type Props = {
   onChange: (mode: SessionMode, filters: SessionFilters, targetCount: number) => void;
 };
 
-const MODES: { value: SessionMode; label: string }[] = [
-  { value: "auto", label: "Auto" },
-  { value: "new_only", label: "New" },
-  { value: "difficult", label: "Difficult" },
-  { value: "overdue", label: "Overdue" },
-  { value: "errors", label: "Errors" },
-  { value: "by_type", label: "By type" },
+const MODES: { value: SessionMode; label: string; tip: string }[] = [
+  { value: "auto",      label: "Auto",      tip: "Smart mix — new, learning, overdue & difficult" },
+  { value: "new_only",  label: "New",       tip: "Items not yet studied" },
+  { value: "difficult", label: "Difficult", tip: "Items flagged as difficult" },
+  { value: "overdue",   label: "Overdue",   tip: "Review date has passed" },
+  { value: "errors",    label: "Errors",    tip: "Items answered incorrectly recently" },
+  { value: "by_type",   label: "By type",   tip: "Use the type filters below" },
 ];
 
 const ITEM_TYPES: { value: ExtendedItemType | ""; label: string }[] = [
@@ -63,6 +63,7 @@ export function FiltersPanel({ mode, filters, targetCount, onChange }: Props) {
               key={m.value}
               className={`filters-mode-btn${mode === m.value ? " filters-mode-btn--active" : ""}`}
               onClick={() => setMode(m.value)}
+              data-tooltip={m.tip}
             >
               {m.label}
             </button>

@@ -44,6 +44,20 @@ type Rating = "again" | "hard" | "good" | "easy";
 type ItemType = "word" | "phrase" | "phrasal_verb" | "idiom" | "collocation";
 type ItemStatus = "new" | "learning" | "review" | "mastered" | "difficult" | "suspended";
 
+const LEXICAL_TYPE_OPTIONS = [
+  { value: "",              label: "— Part of speech —" },
+  { value: "noun",         label: "Noun" },
+  { value: "verb",         label: "Verb" },
+  { value: "adjective",    label: "Adjective" },
+  { value: "adverb",       label: "Adverb" },
+  { value: "phrasal_verb", label: "Phrasal verb" },
+  { value: "idiom",        label: "Idiom" },
+  { value: "collocation",  label: "Collocation" },
+  { value: "modal_verb",   label: "Modal verb" },
+  { value: "pronoun",      label: "Pronoun" },
+  { value: "preposition",  label: "Preposition" },
+];
+
 // ---------------------------------------------------------------------------
 // API helpers
 // ---------------------------------------------------------------------------
@@ -68,15 +82,15 @@ const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rating }),
     }),
-  add: (targetText: string, nativeText: string, itemType: ItemType) =>
+  add: (targetText: string, nativeText: string, itemType: ItemType, lexicalType?: string) =>
     apiFetch<{ saved: number; skipped: number }>(`${STUDY_API}/items`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        items: [{ item_type: itemType, target_text: targetText, native_text: nativeText }],
+        items: [{ item_type: itemType, target_text: targetText, native_text: nativeText, lexical_type: lexicalType || null }],
       }),
     }),
-  update: (id: number, patch: Partial<Pick<StudyItem, "item_type" | "target_text" | "native_text" | "context_note" | "example_sentence" | "status">>) =>
+  update: (id: number, patch: Partial<Pick<StudyItem, "item_type" | "target_text" | "native_text" | "context_note" | "example_sentence" | "status" | "lexical_type">>) =>
     apiFetch<StudyItem>(`${STUDY_API}/items/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -145,11 +159,12 @@ function AddWordForm({ onSaved }: AddWordFormProps) {
   const [targetText, setTargetText] = useState("");
   const [nativeText, setNativeText] = useState("");
   const [itemType, setItemType] = useState<ItemType>("word");
+  const [lexicalType, setLexicalType] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "dupe" | "error">("idle");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const toggle = () => {
-    if (open) { setTargetText(""); setNativeText(""); setItemType("word"); setStatus("idle"); }
+    if (open) { setTargetText(""); setNativeText(""); setItemType("word"); setLexicalType(""); setStatus("idle"); }
     setOpen((v) => !v);
     if (!open) setTimeout(() => inputRef.current?.focus(), 50);
   };
@@ -160,7 +175,7 @@ function AddWordForm({ onSaved }: AddWordFormProps) {
     if (!text) return;
     setStatus("saving");
     try {
-      const result = await api.add(text, nativeText.trim(), itemType);
+      const result = await api.add(text, nativeText.trim(), itemType, lexicalType || undefined);
       if (result.skipped > 0 && result.saved === 0) {
         setStatus("dupe");
       } else {
@@ -198,6 +213,12 @@ function AddWordForm({ onSaved }: AddWordFormProps) {
               <option value="idiom">idiom</option>
               <option value="collocation">collocation</option>
             </select>
+            <select aria-label="Part of speech" className="study-add-select" value={lexicalType}
+              onChange={(e) => setLexicalType(e.target.value)}>
+              {LEXICAL_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
             <button type="submit" className="primary-button study-add-submit"
               disabled={status === "saving" || !targetText.trim()}>
               {status === "saving" ? "Saving…" : "Save"}
@@ -227,6 +248,7 @@ function EditItemForm({ item, onSaved, onCancel }: EditItemFormProps) {
   const [contextNote, setContextNote] = useState(item.context_note);
   const [exampleSentence, setExampleSentence] = useState(item.example_sentence);
   const [itemType, setItemType] = useState<ItemType>(item.item_type);
+  const [lexicalType, setLexicalType] = useState(item.lexical_type ?? "");
   const [status, setStatus] = useState<ItemStatus>(item.status);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -243,6 +265,7 @@ function EditItemForm({ item, onSaved, onCancel }: EditItemFormProps) {
         context_note: contextNote.trim(),
         example_sentence: exampleSentence.trim(),
         item_type: itemType,
+        lexical_type: lexicalType || null,
         status,
       });
       onSaved(updated);
@@ -265,6 +288,12 @@ function EditItemForm({ item, onSaved, onCancel }: EditItemFormProps) {
           <option value="phrasal_verb">phrasal verb</option>
           <option value="idiom">idiom</option>
           <option value="collocation">collocation</option>
+        </select>
+        <select aria-label="Part of speech" className="study-add-select"
+          value={lexicalType} onChange={(e) => setLexicalType(e.target.value)}>
+          {LEXICAL_TYPE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
         </select>
       </div>
       <input aria-label="Translation" className="study-add-input" type="text"

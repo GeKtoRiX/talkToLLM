@@ -1,4 +1,17 @@
 :root {
+  /* Design tokens used across the study + training modules */
+  --border:     rgba(255, 255, 255, 0.13);
+  --border-mid: rgba(255, 255, 255, 0.22);
+  --surface:    rgba(255, 255, 255, 0.05);
+  --surface-2:  rgba(255, 255, 255, 0.09);
+  --accent:     #f3a84d;
+  --accent-dim: rgba(243, 168, 77, 0.18);
+  --text:       #f7f3e8;
+  --text-muted: rgba(247, 243, 232, 0.45);
+  --text-soft:  rgba(247, 243, 232, 0.70);
+  --ok:         #2ecc71;
+  --err:        #e74c3c;
+
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
   color: #f7f3e8;
   background:
@@ -763,77 +776,149 @@ button {
 .filters-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 12px 0 18px;
-  border-bottom: 1px solid var(--border);
+  gap: 2px;          /* sections sit flush, separated by their own borders */
   margin-bottom: 16px;
 }
 
-/* Mode section: title above the button group */
-.filters-section { display: flex; flex-direction: column; gap: 7px; }
+/* Each logical section is a card-like block */
+.filters-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
 .filters-section__title {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
   margin: 0;
 }
 
+/* Mode buttons — pill group */
 .filters-mode-group {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
   gap: 6px;
 }
 
 .filters-mode-btn {
-  padding: 5px 13px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 0.82rem;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border-mid);
+  background: var(--surface-2);
+  color: var(--text-soft);
+  font-size: 0.83rem;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.14s, color 0.14s, border-color 0.14s, transform 0.1s;
   white-space: nowrap;
+  user-select: none;
+  text-align: center;
 }
-.filters-mode-btn:hover { border-color: var(--accent); color: var(--accent); }
-.filters-mode-btn--active {
-  background: var(--accent);
+.filters-mode-btn:hover {
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+.filters-mode-btn:active { transform: scale(0.96); }
+.filters-mode-btn--active {
+  background: rgba(243, 168, 77, 0.16);
+  border-color: rgba(243, 168, 77, 0.55);
+  color: #f3a84d;
+  font-weight: 600;
 }
 
-/* Secondary filters: 2-column label+control grid */
+/* Tooltip — appears below the button, single line */
+.filters-mode-btn[data-tooltip] { position: relative; }
+.filters-mode-btn[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a2236;
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(247, 243, 232, 0.88);
+  font-size: 0.74rem;
+  font-weight: 400;
+  padding: 5px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 100;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+.filters-mode-btn[data-tooltip]:hover::after { opacity: 1; }
+
+/* Secondary filters inside a card */
 .filters-secondary {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px 14px;
+  gap: 10px 14px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
 }
 
 .filters-secondary__pair {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .filters-secondary__label {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--text-muted);
 }
 
 /* Shared input/select */
 .filters-select,
 .filters-input {
-  padding: 5px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  padding: 6px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--border-mid);
+  background: #0d1420;
   color: var(--text);
-  font-size: 0.82rem;
+  font-size: 0.83rem;
   width: 100%;
   box-sizing: border-box;
+  transition: border-color 0.15s;
+  -webkit-appearance: none;
+  appearance: none;
 }
-.filters-input--number { max-width: 80px; }
+.filters-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(247,243,232,0.35)'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  padding-right: 26px;
+}
+.filters-select option {
+  background: #0d1420;
+  color: #f7f3e8;
+}
+.filters-select:focus,
+.filters-input:focus { outline: none; border-color: var(--accent); }
+
+/* Cards number input — hide OS spinner arrows */
+.filters-input--number {
+  max-width: 80px;
+  -moz-appearance: textfield;
+  text-align: center;
+}
+.filters-input--number::-webkit-inner-spin-button,
+.filters-input--number::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 
 /* --- Training tab layout --- */
 .training-tab {
@@ -856,18 +941,19 @@ button {
 }
 
 .training-start-btn {
-  padding: 10px 36px;
-  border-radius: 8px;
-  border: none;
-  background: var(--accent);
-  color: #fff;
-  font-size: 0.95rem;
+  padding: 12px 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(243, 168, 77, 0.30);
+  background: rgba(243, 168, 77, 0.13);
+  color: #f3a84d;
+  font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: transform 180ms ease, opacity 180ms ease;
 }
-.training-start-btn:disabled { opacity: 0.55; cursor: default; }
-.training-start-btn:hover:not(:disabled) { opacity: 0.88; }
+.training-start-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.training-start-btn:hover:not(:disabled) { transform: translateY(-1px); }
+.training-start-btn:active:not(:disabled) { transform: scale(0.97); opacity: 0.8; }
 
 /* --- Session view --- */
 .session-view {
@@ -897,7 +983,7 @@ button {
 }
 .session-header__score {
   font-weight: 600;
-  color: #2ecc71;
+  color: var(--ok);
   font-size: 0.82rem;
 }
 
