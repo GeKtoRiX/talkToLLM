@@ -113,15 +113,16 @@ describe("TrainingTab — config phase", () => {
   it("shows mode buttons in FiltersPanel", async () => {
     render(<TrainingTab />);
     await waitFor(() => {
-      expect(screen.getByText("Auto (mixed)")).toBeInTheDocument();
-      expect(screen.getByText("New only")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Auto" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "New" })).toBeInTheDocument();
     });
   });
 
   it("renders ProgressStats with total items count", async () => {
     render(<TrainingTab />);
     await waitFor(() => {
-      expect(screen.getByText("5")).toBeInTheDocument(); // total_items
+      // ProgressStats renders "5 items" (total_items=5 from MOCK_STATS)
+      expect(screen.getByText(/5 items/i)).toBeInTheDocument();
     });
   });
 });

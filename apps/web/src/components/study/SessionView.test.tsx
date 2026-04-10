@@ -57,7 +57,7 @@ describe("SessionView", () => {
     expect(bar.style.width).toBe("40%"); // 4/10
   });
 
-  it("shows correct score in header", () => {
+  it("shows question counter in header", () => {
     render(
       <SessionView
         session={SESSION}
@@ -67,7 +67,10 @@ describe("SessionView", () => {
         onComplete={vi.fn()}
       />
     );
-    expect(screen.getByText("3/4")).toBeInTheDocument();
+    // questionsAnswered=4 → currentQuestionNum=5, total=10 → "5 / 10"
+    expect(screen.getByText("5 / 10")).toBeInTheDocument();
+    // correct count shown with checkmark
+    expect(screen.getByText("3 ✓")).toBeInTheDocument();
   });
 
   it("renders MultipleChoice for exercise_type=mc", () => {

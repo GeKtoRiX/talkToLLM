@@ -763,40 +763,38 @@ button {
 .filters-panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px 0 16px;
+  gap: 14px;
+  padding: 12px 0 18px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 16px;
 }
 
-.filters-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.filters-label {
-  font-size: 0.78rem;
+/* Mode section: title above the button group */
+.filters-section { display: flex; flex-direction: column; gap: 7px; }
+.filters-section__title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--text-muted);
-  min-width: 90px;
-  flex-shrink: 0;
+  margin: 0;
 }
 
 .filters-mode-group {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 6px;
 }
 
 .filters-mode-btn {
-  padding: 3px 10px;
-  border-radius: 14px;
+  padding: 5px 13px;
+  border-radius: 16px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
 }
 .filters-mode-btn:hover { border-color: var(--accent); color: var(--accent); }
 .filters-mode-btn--active {
@@ -805,26 +803,37 @@ button {
   color: #fff;
 }
 
-.filters-select {
-  flex: 1;
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 0.82rem;
+/* Secondary filters: 2-column label+control grid */
+.filters-secondary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 14px;
 }
 
+.filters-secondary__pair {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filters-secondary__label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* Shared input/select */
+.filters-select,
 .filters-input {
-  flex: 1;
-  padding: 4px 8px;
+  padding: 5px 8px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
   font-size: 0.82rem;
+  width: 100%;
+  box-sizing: border-box;
 }
-.filters-input--number { max-width: 72px; flex: none; }
+.filters-input--number { max-width: 80px; }
 
 /* --- Training tab layout --- */
 .training-tab {
@@ -843,16 +852,16 @@ button {
 .training-actions {
   display: flex;
   justify-content: center;
-  padding-top: 4px;
+  padding-top: 8px;
 }
 
 .training-start-btn {
-  padding: 9px 32px;
+  padding: 10px 36px;
   border-radius: 8px;
   border: none;
   background: var(--accent);
   color: #fff;
-  font-size: 0.92rem;
+  font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.15s;
@@ -870,16 +879,27 @@ button {
 .session-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 0 8px;
+  gap: 8px;
+  padding: 5px 0 9px;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   font-size: 0.78rem;
   color: var(--text-muted);
 }
-.session-header__mode { text-transform: capitalize; }
-.session-header__score { font-weight: 600; color: var(--text); margin-left: auto; }
-.session-header__type { font-size: 0.75rem; }
+.session-header__mode {
+  text-transform: capitalize;
+  flex: 1;
+}
+.session-header__counter {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: 500;
+}
+.session-header__score {
+  font-weight: 600;
+  color: #2ecc71;
+  font-size: 0.82rem;
+}
 
 .session-progress {
   height: 4px;
@@ -1082,52 +1102,52 @@ button {
 .results-btn--secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
 .results-btn:hover { opacity: 0.85; }
 
-/* --- Progress stats widget --- */
+/* --- Progress stats widget (compact one-liner + mastery bar) --- */
 .progress-stats {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 0 14px;
+  gap: 6px;
+  padding: 8px 0 14px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 14px;
 }
-.progress-stats--loading { color: var(--text-muted); font-size: 0.82rem; padding: 8px 0; }
 
-.progress-stats__grid {
+.progress-stats__summary {
   display: flex;
-  gap: 14px;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
   flex-wrap: wrap;
 }
-.progress-stats__cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  min-width: 38px;
-}
-.progress-stats__value { font-size: 1.1rem; font-weight: 700; }
-.progress-stats__label { font-size: 0.7rem; color: var(--text-muted); }
-.progress-stats__cell--mastered .progress-stats__value { color: #f39c12; }
-.progress-stats__cell--difficult .progress-stats__value { color: #e74c3c; }
+.progress-stats__total   { color: var(--text-muted); }
+.progress-stats__sep     { color: var(--border); }
+.progress-stats__mastered { color: #f39c12; font-weight: 600; }
+.progress-stats__difficult { color: #e74c3c; font-weight: 600; }
+.progress-stats__new     { color: var(--text-muted); }
 
-.progress-stats__mastery-bar {
-  position: relative;
-  height: 6px;
+.progress-stats__bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.progress-stats__bar {
+  flex: 1;
+  height: 5px;
   background: var(--border);
   border-radius: 3px;
-  overflow: visible;
+  overflow: hidden;
 }
-.progress-stats__mastery-fill {
+.progress-stats__fill {
   height: 100%;
   background: #f39c12;
   border-radius: 3px;
   transition: width 0.4s ease;
 }
-.progress-stats__mastery-label {
-  display: block;
-  font-size: 0.7rem;
+.progress-stats__pct {
+  font-size: 0.72rem;
   color: var(--text-muted);
-  margin-top: 3px;
+  min-width: 30px;
+  text-align: right;
 }
 
 /* ---- end training module ---- */

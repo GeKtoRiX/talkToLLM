@@ -18,17 +18,21 @@ type AnswerState =
   | { phase: "submitting" }
   | { phase: "result"; result: AnswerResult };
 
-const EXERCISE_LABEL: Record<string, string> = {
-  mc: "Multiple Choice",
-  input: "Type the Answer",
-  context: "Context Choice",
-  fill: "Fill in the Blank",
+const MODE_LABEL: Record<string, string> = {
+  auto: "Auto",
+  new_only: "New only",
+  difficult: "Difficult",
+  overdue: "Overdue",
+  errors: "Errors",
+  by_type: "By type",
+  manual: "Manual",
 };
 
 export function SessionView({ session, question, questionsAnswered, onAnswer, onComplete }: Props) {
   const [answerState, setAnswerState] = useState<AnswerState>({ phase: "idle" });
 
   const total = session.total_questions;
+  const currentQuestionNum = questionsAnswered + 1;
   const progress = total > 0 ? Math.min(1, questionsAnswered / total) : 0;
 
   async function handleSubmit(answer: string) {
@@ -54,12 +58,14 @@ export function SessionView({ session, question, questionsAnswered, onAnswer, on
     <div className="session-view">
       {/* Header bar */}
       <div className="session-header">
-        <span className="session-header__mode">{session.mode}</span>
-        <span className="session-header__score">
-          {session.correct_count}/{questionsAnswered}
+        <span className="session-header__mode">
+          {MODE_LABEL[session.mode] ?? session.mode}
         </span>
-        <span className="session-header__type">
-          {EXERCISE_LABEL[question.exercise_type] ?? question.exercise_type}
+        <span className="session-header__counter">
+          {currentQuestionNum} / {total}
+        </span>
+        <span className="session-header__score">
+          {session.correct_count} ✓
         </span>
       </div>
 

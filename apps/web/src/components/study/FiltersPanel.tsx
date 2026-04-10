@@ -8,8 +8,8 @@ type Props = {
 };
 
 const MODES: { value: SessionMode; label: string }[] = [
-  { value: "auto", label: "Auto (mixed)" },
-  { value: "new_only", label: "New only" },
+  { value: "auto", label: "Auto" },
+  { value: "new_only", label: "New" },
   { value: "difficult", label: "Difficult" },
   { value: "overdue", label: "Overdue" },
   { value: "errors", label: "Errors" },
@@ -55,8 +55,8 @@ export function FiltersPanel({ mode, filters, targetCount, onChange }: Props) {
   return (
     <div className="filters-panel">
       {/* Mode */}
-      <div className="filters-row">
-        <label className="filters-label">Mode</label>
+      <div className="filters-section">
+        <p className="filters-section__title">Mode</p>
         <div className="filters-mode-group">
           {MODES.map((m) => (
             <button
@@ -70,57 +70,56 @@ export function FiltersPanel({ mode, filters, targetCount, onChange }: Props) {
         </div>
       </div>
 
-      {/* Item type */}
-      <div className="filters-row">
-        <label className="filters-label">Item type</label>
-        <select
-          className="filters-select"
-          value={filters.item_type ?? ""}
-          onChange={(e) => update({ item_type: (e.target.value as ExtendedItemType) || undefined })}
-        >
-          {ITEM_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>{t.label}</option>
-          ))}
-        </select>
-      </div>
+      {/* Secondary filters */}
+      <div className="filters-secondary">
+        <div className="filters-secondary__pair">
+          <label className="filters-secondary__label">Type</label>
+          <select
+            className="filters-select"
+            value={filters.item_type ?? ""}
+            onChange={(e) => update({ item_type: (e.target.value as ExtendedItemType) || undefined })}
+          >
+            {ITEM_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </div>
 
-      {/* Lexical type */}
-      <div className="filters-row">
-        <label className="filters-label">Part of speech</label>
-        <select
-          className="filters-select"
-          value={filters.lexical_type ?? ""}
-          onChange={(e) => update({ lexical_type: (e.target.value as LexicalType) || undefined })}
-        >
-          {LEXICAL_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>{t.label}</option>
-          ))}
-        </select>
-      </div>
+        <div className="filters-secondary__pair">
+          <label className="filters-secondary__label">Part of speech</label>
+          <select
+            className="filters-select"
+            value={filters.lexical_type ?? ""}
+            onChange={(e) => update({ lexical_type: (e.target.value as LexicalType) || undefined })}
+          >
+            {LEXICAL_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </div>
 
-      {/* Topic */}
-      <div className="filters-row">
-        <label className="filters-label">Topic</label>
-        <input
-          className="filters-input"
-          type="text"
-          value={filters.topic ?? ""}
-          onChange={(e) => update({ topic: e.target.value || undefined })}
-          placeholder="Any topic"
-        />
-      </div>
+        <div className="filters-secondary__pair">
+          <label className="filters-secondary__label">Topic</label>
+          <input
+            className="filters-input"
+            type="text"
+            value={filters.topic ?? ""}
+            onChange={(e) => update({ topic: e.target.value || undefined })}
+            placeholder="Any"
+          />
+        </div>
 
-      {/* Card count */}
-      <div className="filters-row">
-        <label className="filters-label">Cards</label>
-        <input
-          className="filters-input filters-input--number"
-          type="number"
-          min={1}
-          max={100}
-          value={targetCount}
-          onChange={(e) => setCount(Math.max(1, Math.min(100, Number(e.target.value))))}
-        />
+        <div className="filters-secondary__pair">
+          <label className="filters-secondary__label">Cards</label>
+          <input
+            className="filters-input filters-input--number"
+            type="number"
+            min={1}
+            max={100}
+            value={targetCount}
+            onChange={(e) => setCount(Math.max(1, Math.min(100, Number(e.target.value))))}
+          />
+        </div>
       </div>
     </div>
   );
