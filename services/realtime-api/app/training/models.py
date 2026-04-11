@@ -19,14 +19,10 @@ VALID_MODES = frozenset({
 VALID_EXERCISE_TYPES = frozenset({"mc", "input", "context", "fill"})
 
 VALID_ITEM_TYPES = frozenset({
-    "word", "phrase", "phrasal_verb", "idiom", "collocation",
+    "word", "phrasal_verb", "idiom", "collocation",
 })
 
-VALID_LEXICAL_TYPES = frozenset({
-    "noun", "verb", "adjective", "adverb", "pronoun", "preposition",
-    "conjunction", "interjection", "article", "numeral",
-    "modal_verb", "auxiliary_verb", "phrasal_verb", "idiom", "collocation",
-})
+VALID_LEXICAL_TYPES = frozenset({"noun", "verb", "adjective", "adverb"})
 
 VALID_STATUSES = frozenset({
     "new", "learning", "review", "mastered", "difficult", "suspended",

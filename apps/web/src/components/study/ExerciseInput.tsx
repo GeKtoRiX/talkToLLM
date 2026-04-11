@@ -23,7 +23,9 @@ export function ExerciseInput({ question, onSubmit, disabled }: Props) {
   return (
     <div className="exercise exercise--input">
       <p className="exercise__label">Type the English word or phrase:</p>
-      <p className="exercise__prompt">{question.prompt_text}</p>
+      <div className="exercise__word-card">
+        <p className="exercise__prompt">{question.prompt_text}</p>
+      </div>
       <div className="exercise__input-row">
         <input
           ref={inputRef}

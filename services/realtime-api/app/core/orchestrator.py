@@ -81,12 +81,22 @@ class TurnOrchestrator:
                 if audio_chunk:
                     await stt.append_audio(audio_chunk)
 
+                cold_start = not stt.is_warm()
+                if cold_start:
+                    log.info(
+                        "stt model is cold — notifying client",
+                        event="stt.warming",
+                        pipeline_step="stt",
+                    )
+                    await session.send_event("stt.warming", {})
+
                 log.info(
                     "stt transcription started",
                     event="stt.start",
                     pipeline_step="stt",
                     audio_bytes=len(audio_chunk),
                     timeout_s=self.settings.stt_timeout_seconds,
+                    cold_start=cold_start,
                 )
                 stt_started = perf_counter()
                 try:

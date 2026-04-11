@@ -1005,34 +1005,53 @@ button {
   min-height: 140px;
 }
 
+/* Fixed-height slot — always present so feedback never shifts layout */
+.session-feedback-slot {
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+}
+
 .session-feedback {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  margin-top: 12px;
-  font-size: 0.88rem;
-  animation: feedback-slide-in 0.18s ease;
+  justify-content: center;
 }
-@keyframes feedback-slide-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
+
+/* Circle: pops in with a spring bounce */
+@keyframes circle-pop {
+  0%   { transform: scale(0);    opacity: 0; }
+  70%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
 }
-.session-feedback--correct {
-  background: color-mix(in srgb, #2ecc71 14%, transparent);
-  color: #1a9e52;
-  border: 1px solid color-mix(in srgb, #2ecc71 30%, transparent);
+/* Symbol: fades + scales in after the circle finishes */
+@keyframes symbol-appear {
+  from { opacity: 0; transform: scale(0.4); }
+  to   { opacity: 1; transform: scale(1); }
 }
-.session-feedback--wrong {
-  background: color-mix(in srgb, #e74c3c 12%, transparent);
-  color: #c0392b;
-  border: 1px solid color-mix(in srgb, #e74c3c 25%, transparent);
+
+.session-feedback__circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: circle-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
-.session-feedback__icon { font-size: 1.25rem; font-weight: 700; }
-.session-feedback__answer { font-weight: 600; }
-.session-feedback__hint  { color: var(--text-muted); font-size: 0.82rem; }
-.session-feedback__mastered { margin-left: auto; font-size: 0.8rem; color: #f39c12; font-weight: 600; }
+.session-feedback--correct .session-feedback__circle { background: #2ecc71; }
+.session-feedback--wrong   .session-feedback__circle { background: #e74c3c; }
+
+.session-feedback__symbol {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+  /* starts invisible, appears after circle finishes (0.3s) */
+  animation: symbol-appear 0.2s ease-out 0.28s both;
+}
 
 /* --- Exercise components --- */
 .exercise {
@@ -1053,12 +1072,40 @@ button {
 }
 .exercise__prompt--sentence { font-weight: 500; font-size: 0.98rem; }
 
-/* Multiple choice / context options */
+/* Word card — accent highlight for the MC prompt word */
+.exercise__word-card {
+  padding: 14px 20px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 10px;
+  text-align: center;
+}
+.exercise__word-card .exercise__prompt {
+  font-size: 1.3rem;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+}
+
+/* Multiple choice / context options — column by default */
 .exercise__options {
   display: flex;
   flex-direction: column;
   gap: 7px;
 }
+
+/* MC options: centered row, ~25% each (wraps to 2×2 on narrow panels) */
+.exercise--mc .exercise__options {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.exercise--mc .exercise__option {
+  width: calc(25% - 5.25px);
+  min-width: 110px;
+  text-align: center;
+  justify-content: center;
+}
+
 .exercise__option {
   padding: 9px 14px;
   border-radius: 7px;
@@ -1068,11 +1115,32 @@ button {
   font-size: 0.88rem;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, background 0.15s, opacity 0.15s;
 }
 .exercise__option:hover:not(:disabled) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
 .exercise__option--selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, var(--surface)); }
 .exercise__option:disabled { opacity: 0.6; cursor: default; }
+
+/* Inline feedback states for MC / context buttons */
+.exercise__option--correct,
+.exercise__option--correct:disabled {
+  border-color: #2ecc71;
+  background: color-mix(in srgb, #2ecc71 18%, var(--surface));
+  color: #1a9e52;
+  font-weight: 600;
+  opacity: 1;
+}
+.exercise__option--wrong,
+.exercise__option--wrong:disabled {
+  border-color: #e74c3c;
+  background: color-mix(in srgb, #e74c3c 15%, var(--surface));
+  color: #c0392b;
+  opacity: 1;
+}
+.exercise__option--inactive,
+.exercise__option--inactive:disabled {
+  opacity: 0.3;
+}
 
 /* Text input exercises */
 .exercise__input-row {

@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import type { SessionQuestion } from "./types";
+import type { AnswerResult, SessionQuestion } from "./types";
 
 type Props = {
   question: SessionQuestion;
   onSubmit: (answer: string) => void;
   disabled?: boolean;
+  result?: AnswerResult;
 };
 
 function shuffleOptions(options: string[], seed: number): string[] {
@@ -18,7 +19,7 @@ function shuffleOptions(options: string[], seed: number): string[] {
   return arr;
 }
 
-export function ExerciseContext({ question, onSubmit, disabled }: Props) {
+export function ExerciseContext({ question, onSubmit, disabled, result }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
 
   const options = useMemo(() => {
@@ -38,6 +39,22 @@ export function ExerciseContext({ question, onSubmit, disabled }: Props) {
     onSubmit(opt);
   }
 
+  function getOptionClass(opt: string): string {
+    let cls = "exercise__option";
+    if (result) {
+      if (opt === question.correct_answer) {
+        cls += " exercise__option--correct";
+      } else if (opt === selected) {
+        cls += " exercise__option--wrong";
+      } else {
+        cls += " exercise__option--inactive";
+      }
+    } else if (selected === opt) {
+      cls += " exercise__option--selected";
+    }
+    return cls;
+  }
+
   return (
     <div className="exercise exercise--context">
       <p className="exercise__label">Choose the correct translation for the context:</p>
@@ -46,7 +63,7 @@ export function ExerciseContext({ question, onSubmit, disabled }: Props) {
         {options.map((opt) => (
           <button
             key={opt}
-            className={`exercise__option${selected === opt ? " exercise__option--selected" : ""}`}
+            className={getOptionClass(opt)}
             onClick={() => handleClick(opt)}
             disabled={disabled || selected !== null}
           >

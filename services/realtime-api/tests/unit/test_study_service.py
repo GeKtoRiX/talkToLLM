@@ -128,7 +128,7 @@ class TestAddItems:
 
     def test_deduplication_different_type_allowed(self, svc):
         svc.add_items([{"item_type": "word", "target_text": "hello"}])
-        result = svc.add_items([{"item_type": "phrase", "target_text": "hello"}])
+        result = svc.add_items([{"item_type": "collocation", "target_text": "hello"}])
         assert result["saved"] == 1
 
     def test_deduplication_different_language_pair_allowed(self, svc):
@@ -148,7 +148,7 @@ class TestAddItems:
 
     def test_fields_stored_correctly(self, svc):
         svc.add_items([{
-            "item_type": "phrase",
+            "item_type": "collocation",
             "target_text": "by the way",
             "native_text": "кстати",
             "context_note": "informal",

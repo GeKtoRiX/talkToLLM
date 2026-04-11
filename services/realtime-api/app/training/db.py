@@ -24,7 +24,7 @@ CREATE TABLE study_items_new (
     id                      INTEGER PRIMARY KEY AUTOINCREMENT,
     item_type               TEXT    NOT NULL
                                     CHECK(item_type IN (
-                                        'word','phrase','phrasal_verb','idiom','collocation'
+                                        'word','phrasal_verb','idiom','collocation'
                                     )),
     target_text             TEXT    NOT NULL,
     native_text             TEXT    NOT NULL DEFAULT '',
@@ -148,7 +148,6 @@ def migrate_db(db_path: Path) -> None:
     Phase 1 — Widen study_items (table recreation):
         - Extends item_type and status CHECK constraints.
         - Adds six vocabulary-metadata columns.
-        - Converts legacy item_type='sentence' rows to item_type='phrase'.
 
     Phase 2 — Create new tables (CREATE … IF NOT EXISTS):
         - item_progress
@@ -171,7 +170,6 @@ def migrate_db(db_path: Path) -> None:
             conn.execute("BEGIN")
             try:
                 conn.execute(_STUDY_ITEMS_NEW_DDL)
-                # Copy all rows; 'sentence' → 'phrase' for the item_type column.
                 conn.execute("""
                     INSERT INTO study_items_new (
                         id, item_type, target_text, native_text, context_note,
@@ -183,8 +181,7 @@ def migrate_db(db_path: Path) -> None:
                         difficulty_level, tags, example_sentence_native
                     )
                     SELECT
-                        id,
-                        CASE item_type WHEN 'sentence' THEN 'phrase' ELSE item_type END,
+                        id, item_type,
                         target_text, native_text, context_note, example_sentence,
                         source_kind, source_turn_text, source_response_text,
                         language_target, language_native,

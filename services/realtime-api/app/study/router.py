@@ -20,7 +20,7 @@ def _svc(request: Request) -> StudyService:
 # ---------------------------------------------------------------------------
 
 class StudyItemCreate(BaseModel):
-    item_type: Literal["word", "phrase", "phrasal_verb", "idiom", "collocation"] = "word"
+    item_type: Literal["word", "phrasal_verb", "idiom", "collocation"] = "word"
     target_text: str = Field(min_length=1)
     native_text: str = ""
     context_note: str = ""
@@ -48,7 +48,7 @@ class ReviewRequest(BaseModel):
 
 
 class UpdateItemRequest(BaseModel):
-    item_type: Optional[Literal["word", "phrase", "phrasal_verb", "idiom", "collocation"]] = None
+    item_type: Optional[Literal["word", "phrasal_verb", "idiom", "collocation"]] = None
     target_text: Optional[str] = None
     native_text: Optional[str] = None
     context_note: Optional[str] = None

@@ -54,7 +54,7 @@ class TestAddItems:
         resp = client.post("/api/study/items", json={"items": [
             {"item_type": "word", "target_text": "alpha"},
             {"item_type": "word", "target_text": "alpha"},  # duplicate in same batch
-            {"item_type": "phrase", "target_text": "beta"},
+            {"item_type": "collocation", "target_text": "beta"},
         ]})
         assert resp.status_code == 201
         data = resp.json()

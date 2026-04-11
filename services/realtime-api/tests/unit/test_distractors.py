@@ -111,9 +111,9 @@ class TestTierSelection:
 
     def test_falls_back_to_anything_when_no_type_match(self, db_path, selector):
         iid = _insert_item(db_path, "spill beans", "раскрыть секрет", "idiom", "idiom")
-        # No idioms in DB; add phrases
+        # No idioms in DB; add words with different type
         for i in range(5):
-            _insert_item(db_path, f"phrase_{i}", f"фраза_{i}", "phrase", "noun")
+            _insert_item(db_path, f"word_{i}", f"слово_{i}", "word", "noun")
 
         result = selector.select_native_distractors(iid, "idiom", "idiom", n=3, seed=1)
         assert len(result) == 3

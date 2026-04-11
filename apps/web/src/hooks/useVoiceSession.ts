@@ -30,6 +30,7 @@ export function useVoiceSession() {
   const [connected, setConnected] = useState(false);
   const [textQuestion, setTextQuestion] = useState("");
   const [activeScreenshot, setActiveScreenshot] = useState<ImageAttachment | null>(null);
+  const [sttWarmingUp, setSttWarmingUp] = useState(false);
 
   const websocketRef = useRef<WebSocket | null>(null);
   const audioCaptureRef = useRef(new AudioCaptureController());
@@ -171,8 +172,12 @@ export function useVoiceSession() {
         case "session.started":
           setConnected(true);
           break;
+        case "stt.warming":
+          setSttWarmingUp(true);
+          break;
         case "transcript.partial":
         case "transcript.final": {
+          setSttWarmingUp(false);
           const transcriptText = (event.payload as TranscriptPayload).text;
           setTranscript(transcriptText);
           if (event.type === "transcript.final") {
@@ -234,6 +239,7 @@ export function useVoiceSession() {
     websocketRef.current = null;
     setConnected(false);
     setSessionState("idle");
+    setSttWarmingUp(false);
   }
 
   async function startTalking() {
@@ -360,6 +366,7 @@ export function useVoiceSession() {
     conversationHistory,
     error,
     connected,
+    sttWarmingUp,
     textQuestion,
     setTextQuestion,
     activeScreenshot,

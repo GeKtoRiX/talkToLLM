@@ -57,6 +57,14 @@ class STTProvider(ABC):
     async def finalize_utterance(self) -> TranscriptResult:
         raise NotImplementedError
 
+    def is_warm(self) -> bool:
+        """Return True if the model is already loaded into memory."""
+        return True
+
+    async def warm_up(self) -> None:
+        """Pre-load the model so the first real transcription is not delayed."""
+        return
+
 
 class LLMProvider(ABC):
     @abstractmethod

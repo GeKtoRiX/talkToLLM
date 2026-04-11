@@ -9,7 +9,7 @@ from typing import Generator
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS study_items (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    item_type           TEXT    NOT NULL CHECK(item_type IN ('word', 'phrase', 'sentence')),
+    item_type           TEXT    NOT NULL CHECK(item_type IN ('word', 'phrasal_verb', 'idiom', 'collocation')),
     target_text         TEXT    NOT NULL,
     native_text         TEXT    NOT NULL DEFAULT '',
     context_note        TEXT    NOT NULL DEFAULT '',

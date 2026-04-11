@@ -36,6 +36,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         session_manager = SessionManager(app_settings)
         llm = create_llm_provider(app_settings)
         tts = create_tts_provider(app_settings)
+        stt_factory = create_stt_factory(app_settings)
         app.state.settings = app_settings
         app.state.session_manager = session_manager
         app.state.study_service = StudyService(app_settings.study_db_path_resolved)
@@ -43,12 +44,18 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         # runs after init_db has created the base tables.
         app.state.training_service = TrainingService(app_settings.study_db_path_resolved)
         app.state.orchestrator = TurnOrchestrator(
-            stt_factory=create_stt_factory(app_settings),
+            stt_factory=stt_factory,
             llm=llm,
             tts=tts,
             system_prompt=app_settings.assistant_system_prompt,
             settings=app_settings,
         )
+
+        # Pre-warm the STT model in the background so the first voice turn
+        # does not block on cold model loading.
+        stt_instance = stt_factory()
+        asyncio.create_task(stt_instance.warm_up())
+
         logger.info(
             "application started",
             extra={

@@ -35,7 +35,7 @@ class MockWhisperProvider(STTProvider):
 
 
 class FasterWhisperSTTProvider(STTProvider):
-    _model_cache: dict[tuple[str, str, str, str], object] = {}
+    _model_cache: dict[tuple[str, str, str, str], Any] = {}
 
     def __init__(self, settings: AppSettings) -> None:
         self.settings = settings
@@ -61,7 +61,29 @@ class FasterWhisperSTTProvider(STTProvider):
         finally:
             audio_path.unlink(missing_ok=True)
 
-    def _transcribe_file(self, audio_path: Path) -> str:
+    def is_warm(self) -> bool:
+        return bool(self._model_cache)
+
+    async def warm_up(self) -> None:
+        if self.is_warm():
+            return
+        logger.info(
+            "pre-warming faster-whisper model",
+            extra={"event": "stt.warmup.start", "provider": "faster_whisper"},
+        )
+        try:
+            await asyncio.to_thread(self._ensure_model_loaded)
+            logger.info(
+                "faster-whisper model warm-up complete",
+                extra={"event": "stt.warmup.end", "provider": "faster_whisper"},
+            )
+        except Exception:
+            logger.exception(
+                "faster-whisper warm-up failed (non-fatal)",
+                extra={"event": "stt.warmup.failed", "provider": "faster_whisper"},
+            )
+
+    def _ensure_model_loaded(self) -> Any:
         try:
             from faster_whisper import WhisperModel
         except ImportError as error:
@@ -98,6 +120,10 @@ class FasterWhisperSTTProvider(STTProvider):
                     "stt_model_root": str(model_root),
                 },
             )
+        return model
+
+    def _transcribe_file(self, audio_path: Path) -> str:
+        model = self._ensure_model_loaded()
 
         segments, _info = model.transcribe(
             str(audio_path),
@@ -208,16 +234,13 @@ class WhisperRocmSTTProvider(STTProvider):
         try:
             import numpy as np
             import torch
-            import whisper
         except ImportError as error:
             raise RuntimeError(
                 "openai-whisper, numpy, and a ROCm-enabled torch build are required for whisper_rocm."
             ) from error
 
+        model = self._ensure_model_loaded()
         device = self._resolve_device(torch)
-        model_root = self.settings.resolve_path(self.settings.stt_model_root)
-        model_root.mkdir(parents=True, exist_ok=True)
-        model = self._load_model(whisper, model_root, device)
 
         model_device = self._model_device(model)
         if device == "cuda" and getattr(model_device, "type", None) != "cuda":
@@ -236,6 +259,41 @@ class WhisperRocmSTTProvider(STTProvider):
             verbose=False,
         )
         return str(result.get("text", "")).strip()
+
+    def is_warm(self) -> bool:
+        return bool(self._model_cache)
+
+    async def warm_up(self) -> None:
+        if self.is_warm():
+            return
+        logger.info(
+            "pre-warming whisper rocm model",
+            extra={"event": "stt.warmup.start", "provider": "whisper_rocm"},
+        )
+        try:
+            await asyncio.to_thread(self._ensure_model_loaded)
+            logger.info(
+                "whisper rocm model warm-up complete",
+                extra={"event": "stt.warmup.end", "provider": "whisper_rocm"},
+            )
+        except Exception:
+            logger.exception(
+                "whisper rocm warm-up failed (non-fatal)",
+                extra={"event": "stt.warmup.failed", "provider": "whisper_rocm"},
+            )
+
+    def _ensure_model_loaded(self) -> Any:
+        try:
+            import torch
+            import whisper
+        except ImportError as error:
+            raise RuntimeError(
+                "openai-whisper, numpy, and a ROCm-enabled torch build are required for whisper_rocm."
+            ) from error
+        device = self._resolve_device(torch)
+        model_root = self.settings.resolve_path(self.settings.stt_model_root)
+        model_root.mkdir(parents=True, exist_ok=True)
+        return self._load_model(whisper, model_root, device)
 
     def _load_model(self, whisper_module: Any, model_root: Path, device: str) -> Any:
         model_source = self._resolve_model_source(model_root)

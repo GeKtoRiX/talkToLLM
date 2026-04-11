@@ -13,12 +13,8 @@ from .db import get_db, init_db
 # ---------------------------------------------------------------------------
 VALID_RATINGS = {"again", "hard", "good", "easy"}
 VALID_STATUSES = {"new", "learning", "review", "mastered", "difficult", "suspended"}
-VALID_ITEM_TYPES = {"word", "phrase", "phrasal_verb", "idiom", "collocation"}
-VALID_LEXICAL_TYPES = {
-    "noun", "verb", "adjective", "adverb", "pronoun", "preposition",
-    "conjunction", "interjection", "article", "numeral",
-    "modal_verb", "auxiliary_verb", "phrasal_verb", "idiom", "collocation",
-}
+VALID_ITEM_TYPES = {"word", "phrasal_verb", "idiom", "collocation"}
+VALID_LEXICAL_TYPES = {"noun", "verb", "adjective", "adverb"}
 VALID_SOURCE_KINDS = {"manual", "mcp_extract", "mcp_manual"}
 
 EASE_MIN = 1.3

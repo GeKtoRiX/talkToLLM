@@ -19,7 +19,6 @@ const MODES: { value: SessionMode; label: string; tip: string }[] = [
 const ITEM_TYPES: { value: ExtendedItemType | ""; label: string }[] = [
   { value: "", label: "All types" },
   { value: "word", label: "Words" },
-  { value: "phrase", label: "Phrases" },
   { value: "phrasal_verb", label: "Phrasal verbs" },
   { value: "idiom", label: "Idioms" },
   { value: "collocation", label: "Collocations" },
@@ -31,12 +30,6 @@ const LEXICAL_TYPES: { value: LexicalType | ""; label: string }[] = [
   { value: "verb", label: "Verb" },
   { value: "adjective", label: "Adjective" },
   { value: "adverb", label: "Adverb" },
-  { value: "phrasal_verb", label: "Phrasal verb" },
-  { value: "idiom", label: "Idiom" },
-  { value: "collocation", label: "Collocation" },
-  { value: "modal_verb", label: "Modal verb" },
-  { value: "pronoun", label: "Pronoun" },
-  { value: "preposition", label: "Preposition" },
 ];
 
 export function FiltersPanel({ mode, filters, targetCount, onChange }: Props) {

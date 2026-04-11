@@ -10,7 +10,7 @@ type Props = {
   question: SessionQuestion;
   questionsAnswered: number;
   onAnswer: (questionId: number, answer: string) => Promise<AnswerResult>;
-  onComplete: () => void;
+  onAdvance: (result: AnswerResult) => void;
 };
 
 type AnswerState =
@@ -28,7 +28,7 @@ const MODE_LABEL: Record<string, string> = {
   manual: "Manual",
 };
 
-export function SessionView({ session, question, questionsAnswered, onAnswer, onComplete }: Props) {
+export function SessionView({ session, question, questionsAnswered, onAnswer, onAdvance }: Props) {
   const [answerState, setAnswerState] = useState<AnswerState>({ phase: "idle" });
 
   const total = session.total_questions;
@@ -40,12 +40,10 @@ export function SessionView({ session, question, questionsAnswered, onAnswer, on
     try {
       const result = await onAnswer(question.id, answer);
       setAnswerState({ phase: "result", result });
-      // Auto-advance after 1.4s
+      // After showing feedback, reset and advance
       setTimeout(() => {
         setAnswerState({ phase: "idle" });
-        if (result.session_complete) {
-          onComplete();
-        }
+        onAdvance(result);
       }, 1400);
     } catch {
       setAnswerState({ phase: "idle" });
@@ -53,6 +51,9 @@ export function SessionView({ session, question, questionsAnswered, onAnswer, on
   }
 
   const isDisabled = answerState.phase !== "idle";
+  const result = answerState.phase === "result" ? answerState.result : undefined;
+  // Choice exercises (MC, context) show feedback inline on buttons — no overlay needed
+  const isChoiceExercise = question.exercise_type === "mc" || question.exercise_type === "context";
 
   return (
     <div className="session-view">
@@ -77,17 +78,20 @@ export function SessionView({ session, question, questionsAnswered, onAnswer, on
         />
       </div>
 
-      {/* Exercise */}
+      {/* Exercise — key={question.id} remounts on each new question, resetting internal state */}
       <div className="session-exercise">
         {question.exercise_type === "mc" && (
           <ExerciseMultipleChoice
+            key={question.id}
             question={question}
             onSubmit={handleSubmit}
             disabled={isDisabled}
+            result={result}
           />
         )}
         {question.exercise_type === "input" && (
           <ExerciseInput
+            key={question.id}
             question={question}
             onSubmit={handleSubmit}
             disabled={isDisabled}
@@ -95,13 +99,16 @@ export function SessionView({ session, question, questionsAnswered, onAnswer, on
         )}
         {question.exercise_type === "context" && (
           <ExerciseContext
+            key={question.id}
             question={question}
             onSubmit={handleSubmit}
             disabled={isDisabled}
+            result={result}
           />
         )}
         {question.exercise_type === "fill" && (
           <ExerciseFillBlank
+            key={question.id}
             question={question}
             onSubmit={handleSubmit}
             disabled={isDisabled}
@@ -109,26 +116,19 @@ export function SessionView({ session, question, questionsAnswered, onAnswer, on
         )}
       </div>
 
-      {/* Result overlay */}
-      {answerState.phase === "result" && (
-        <div
-          className={`session-feedback${answerState.result.is_correct ? " session-feedback--correct" : " session-feedback--wrong"}`}
-        >
-          <span className="session-feedback__icon">
-            {answerState.result.is_correct ? "✓" : "✗"}
-          </span>
-          {!answerState.result.is_correct && (
-            <span className="session-feedback__answer">
-              {answerState.result.correct_answer}
-            </span>
-          )}
-          {answerState.result.explanation && (
-            <span className="session-feedback__hint">
-              {answerState.result.explanation}
-            </span>
-          )}
-          {answerState.result.newly_mastered && (
-            <span className="session-feedback__mastered">Mastered!</span>
+      {/* Result slot — always occupies space to prevent layout shift */}
+      {!isChoiceExercise && (
+        <div className="session-feedback-slot">
+          {answerState.phase === "result" && (
+            <div
+              className={`session-feedback${answerState.result.is_correct ? " session-feedback--correct" : " session-feedback--wrong"}`}
+            >
+              <span className="session-feedback__circle">
+                <span className="session-feedback__symbol">
+                  {answerState.result.is_correct ? "✓" : "✕"}
+                </span>
+              </span>
+            </div>
           )}
         </div>
       )}

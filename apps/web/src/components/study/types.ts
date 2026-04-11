@@ -7,14 +7,10 @@
 // Enumerations
 // ---------------------------------------------------------------------------
 
-export type LexicalType =
-  | "noun" | "verb" | "adjective" | "adverb" | "pronoun"
-  | "preposition" | "conjunction" | "interjection" | "article"
-  | "numeral" | "modal_verb" | "auxiliary_verb"
-  | "phrasal_verb" | "idiom" | "collocation";
+export type LexicalType = "noun" | "verb" | "adjective" | "adverb";
 
 export type ExtendedItemType =
-  | "word" | "phrase" | "phrasal_verb" | "idiom" | "collocation";
+  | "word" | "phrasal_verb" | "idiom" | "collocation";
 
 export type ExtendedStatus =
   | "new" | "learning" | "review" | "mastered" | "difficult" | "suspended";

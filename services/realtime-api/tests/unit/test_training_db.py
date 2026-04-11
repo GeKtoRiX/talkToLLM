@@ -2,7 +2,7 @@
 
 Tests cover:
   - Brand-new database: all four tables created correctly.
-  - Existing database with old schema: data preserved, sentence→phrase migrated.
+  - Existing database with old schema: data preserved.
   - Already-migrated database: second call is a no-op (no data loss).
   - New columns have correct defaults after migration.
   - New item_type and status values accepted after migration.
@@ -171,7 +171,7 @@ class TestExistingDatabase:
             )
             conn.execute(
                 "INSERT INTO study_items(item_type, target_text, native_text) "
-                "VALUES ('phrase','run out of','исчерпать')"
+                "VALUES ('word','run out of','исчерпать')"
             )
             conn.commit()
 
@@ -182,23 +182,6 @@ class TestExistingDatabase:
         texts = [r["target_text"] for r in rows]
         assert "ephemeral" in texts
         assert "run out of" in texts
-
-    def test_sentence_migrated_to_phrase(self, fresh_db):
-        """Rows with item_type='sentence' become item_type='phrase'."""
-        with _connect(fresh_db) as conn:
-            conn.execute(
-                "INSERT INTO study_items(item_type, target_text) "
-                "VALUES ('sentence','She went to the store')"
-            )
-            conn.commit()
-
-        migrate_db(fresh_db)
-
-        with _connect(fresh_db) as conn:
-            row = conn.execute(
-                "SELECT item_type FROM study_items WHERE target_text='She went to the store'"
-            ).fetchone()
-        assert row["item_type"] == "phrase"
 
     def test_existing_review_events_preserved(self, fresh_db):
         """review_events rows must survive the study_items table recreation."""

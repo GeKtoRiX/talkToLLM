@@ -50,7 +50,7 @@ describe("SessionView", () => {
         question={makeQuestion()}
         questionsAnswered={4}
         onAnswer={vi.fn()}
-        onComplete={vi.fn()}
+        onAdvance={vi.fn()}
       />
     );
     const bar = document.querySelector(".session-progress__bar") as HTMLElement;
@@ -64,7 +64,7 @@ describe("SessionView", () => {
         question={makeQuestion()}
         questionsAnswered={4}
         onAnswer={vi.fn()}
-        onComplete={vi.fn()}
+        onAdvance={vi.fn()}
       />
     );
     // questionsAnswered=4 → currentQuestionNum=5, total=10 → "5 / 10"
@@ -80,7 +80,7 @@ describe("SessionView", () => {
         question={makeQuestion({ exercise_type: "mc" })}
         questionsAnswered={0}
         onAnswer={vi.fn()}
-        onComplete={vi.fn()}
+        onAdvance={vi.fn()}
       />
     );
     // MC renders option buttons
@@ -96,14 +96,14 @@ describe("SessionView", () => {
         question={makeQuestion({ exercise_type: "input" })}
         questionsAnswered={0}
         onAnswer={vi.fn()}
-        onComplete={vi.fn()}
+        onAdvance={vi.fn()}
       />
     );
     expect(screen.getByRole("textbox")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /submit/i })).toBeInTheDocument();
   });
 
-  it("shows correct feedback overlay after correct answer", async () => {
+  it("marks correct answer button after correct MC answer", async () => {
     const result: AnswerResult = {
       is_correct: true,
       error_type: null,
@@ -122,7 +122,7 @@ describe("SessionView", () => {
         question={makeQuestion({ exercise_type: "mc" })}
         questionsAnswered={0}
         onAnswer={onAnswer}
-        onComplete={vi.fn()}
+        onAdvance={vi.fn()}
       />
     );
 
@@ -130,12 +130,12 @@ describe("SessionView", () => {
     fireEvent.click(btns[0]);
 
     await waitFor(() => {
-      const feedback = document.querySelector(".session-feedback--correct");
-      expect(feedback).toBeInTheDocument();
+      const correctBtn = screen.getByText("мимолётный").closest("button");
+      expect(correctBtn).toHaveClass("exercise__option--correct");
     });
   });
 
-  it("shows wrong feedback overlay with correct answer", async () => {
+  it("marks wrong and correct buttons after wrong MC answer", async () => {
     const result: AnswerResult = {
       is_correct: false,
       error_type: "full_miss",
@@ -154,7 +154,7 @@ describe("SessionView", () => {
         question={makeQuestion({ exercise_type: "mc" })}
         questionsAnswered={0}
         onAnswer={onAnswer}
-        onComplete={vi.fn()}
+        onAdvance={vi.fn()}
       />
     );
 
@@ -162,8 +162,42 @@ describe("SessionView", () => {
     fireEvent.click(btns[0]);
 
     await waitFor(() => {
+      // Correct answer is always highlighted green
+      const correctBtn = screen.getByText("мимолётный").closest("button");
+      expect(correctBtn).toHaveClass("exercise__option--correct");
+    });
+  });
+
+  it("shows feedback overlay after wrong input answer", async () => {
+    const result: AnswerResult = {
+      is_correct: false,
+      error_type: "full_miss",
+      correct_answer: "мимолётный",
+      explanation: null,
+      next_question: null,
+      session_complete: false,
+      newly_mastered: false,
+      newly_difficult: false,
+    };
+    const onAnswer = vi.fn().mockResolvedValue(result);
+
+    render(
+      <SessionView
+        session={SESSION}
+        question={makeQuestion({ exercise_type: "input" })}
+        questionsAnswered={0}
+        onAnswer={onAnswer}
+        onAdvance={vi.fn()}
+      />
+    );
+
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "wrong" } });
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }));
+
+    await waitFor(() => {
       expect(document.querySelector(".session-feedback--wrong")).toBeInTheDocument();
-      expect(document.querySelector(".session-feedback__answer")).toBeInTheDocument();
+      expect(document.querySelector(".session-feedback__circle")).toBeInTheDocument();
     });
   });
 });

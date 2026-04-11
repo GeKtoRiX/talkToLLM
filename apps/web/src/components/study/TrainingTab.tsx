@@ -1,5 +1,6 @@
-import { useReducer } from "react";
+import { useReducer, useRef } from "react";
 import type {
+  AnswerResult,
   SessionFilters,
   SessionMode,
   SessionQuestion,
@@ -64,6 +65,9 @@ const DEFAULT_COUNT = 20;
 
 export function TrainingTab() {
   const [phase, dispatch] = useReducer(reducer, { phase: "config" });
+  const phaseRef = useRef<Phase>({ phase: "config" });
+  phaseRef.current = phase;
+
   const [mode, setMode] = useConfigState(DEFAULT_MODE);
   const [filters, setFilters] = useConfigState(DEFAULT_FILTERS);
   const [targetCount, setTargetCount] = useConfigState(DEFAULT_COUNT);
@@ -92,31 +96,40 @@ export function TrainingTab() {
     }
   }
 
-  async function handleAnswer(questionId: number, answer: string) {
+  async function handleAnswer(questionId: number, answer: string): Promise<AnswerResult> {
     if (phase.phase !== "session") throw new Error("Not in session");
     const result = await trainingApi.submitAnswer(phase.session.id, questionId, answer);
+
     if (result.session_complete) {
-      // Fetch full results then transition
-      const results = await trainingApi.getSessionResults(phase.session.id);
-      // Small delay so SessionView can show the result overlay first
-      setTimeout(() => dispatch({ type: "SESSION_COMPLETE", results }), 0);
-    } else if (result.next_question) {
-      // Build updated session snapshot with incremented counts
-      const updatedSession: TrainingSession = {
-        ...phase.session,
-        correct_count: phase.session.correct_count + (result.is_correct ? 1 : 0),
-        wrong_count: phase.session.wrong_count + (result.is_correct ? 0 : 1),
-      };
-      dispatch({ type: "NEXT_QUESTION", session: updatedSession, question: result.next_question });
+      // Fetch results immediately; SessionView will show feedback for 1.4 s in parallel.
+      // handleAdvance is called after the 1.4 s window as a fallback only.
+      trainingApi.getSessionResults(phase.session.id)
+        .then((results) => dispatch({ type: "SESSION_COMPLETE", results }))
+        .catch((err) => dispatch({ type: "ERROR", message: err instanceof Error ? err.message : "Failed to load results" }));
     }
+    // next_question case is handled by handleAdvance (called by SessionView after feedback)
+
     return result;
   }
 
-  function handleComplete() {
-    if (phase.phase !== "session") return;
-    trainingApi.getSessionResults(phase.session.id)
-      .then((results) => dispatch({ type: "SESSION_COMPLETE", results }))
-      .catch((err) => dispatch({ type: "ERROR", message: err instanceof Error ? err.message : "Failed to load results" }));
+  function handleAdvance(result: AnswerResult) {
+    // Guard: may already have transitioned (e.g. session_complete dispatched above)
+    if (phaseRef.current.phase !== "session") return;
+    const curr = phaseRef.current;
+
+    if (result.session_complete) {
+      // Fallback in case the immediate fetch above failed
+      trainingApi.getSessionResults(curr.session.id)
+        .then((results) => dispatch({ type: "SESSION_COMPLETE", results }))
+        .catch((err) => dispatch({ type: "ERROR", message: err instanceof Error ? err.message : "Failed to load results" }));
+    } else if (result.next_question) {
+      const updatedSession: TrainingSession = {
+        ...curr.session,
+        correct_count: curr.session.correct_count + (result.is_correct ? 1 : 0),
+        wrong_count: curr.session.wrong_count + (result.is_correct ? 0 : 1),
+      };
+      dispatch({ type: "NEXT_QUESTION", session: updatedSession, question: result.next_question });
+    }
   }
 
   if (phase.phase === "session") {
@@ -126,7 +139,7 @@ export function TrainingTab() {
         question={phase.question}
         questionsAnswered={phase.questionsAnswered}
         onAnswer={handleAnswer}
-        onComplete={handleComplete}
+        onAdvance={handleAdvance}
       />
     );
   }

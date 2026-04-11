@@ -28,6 +28,7 @@ export const serverEventTypes = [
   "session.started",
   "transcript.partial",
   "transcript.final",
+  "stt.warming",
   "llm.thinking",
   "response.text.delta",
   "response.text.final",
@@ -111,6 +112,7 @@ export type ServerEnvelope =
   | VoiceEventEnvelope<SessionStartPayload, "session.started">
   | VoiceEventEnvelope<TranscriptPayload, "transcript.partial">
   | VoiceEventEnvelope<TranscriptPayload, "transcript.final">
+  | VoiceEventEnvelope<Record<string, never>, "stt.warming">
   | VoiceEventEnvelope<ThinkingPayload, "llm.thinking">
   | VoiceEventEnvelope<ResponseTextPayload, "response.text.delta">
   | VoiceEventEnvelope<ResponseTextPayload, "response.text.final">

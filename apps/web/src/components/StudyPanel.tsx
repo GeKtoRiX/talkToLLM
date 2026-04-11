@@ -8,7 +8,7 @@ const STUDY_API = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000")
 // ---------------------------------------------------------------------------
 export type StudyItem = {
   id: number;
-  item_type: "word" | "phrase" | "phrasal_verb" | "idiom" | "collocation";
+  item_type: "word" | "phrasal_verb" | "idiom" | "collocation";
   target_text: string;
   native_text: string;
   context_note: string;
@@ -41,21 +41,15 @@ export type StudyStats = {
 };
 
 type Rating = "again" | "hard" | "good" | "easy";
-type ItemType = "word" | "phrase" | "phrasal_verb" | "idiom" | "collocation";
+type ItemType = "word" | "phrasal_verb" | "idiom" | "collocation";
 type ItemStatus = "new" | "learning" | "review" | "mastered" | "difficult" | "suspended";
 
 const LEXICAL_TYPE_OPTIONS = [
-  { value: "",              label: "— Part of speech —" },
-  { value: "noun",         label: "Noun" },
-  { value: "verb",         label: "Verb" },
-  { value: "adjective",    label: "Adjective" },
-  { value: "adverb",       label: "Adverb" },
-  { value: "phrasal_verb", label: "Phrasal verb" },
-  { value: "idiom",        label: "Idiom" },
-  { value: "collocation",  label: "Collocation" },
-  { value: "modal_verb",   label: "Modal verb" },
-  { value: "pronoun",      label: "Pronoun" },
-  { value: "preposition",  label: "Preposition" },
+  { value: "",           label: "— Part of speech —" },
+  { value: "noun",      label: "Noun" },
+  { value: "verb",      label: "Verb" },
+  { value: "adjective", label: "Adjective" },
+  { value: "adverb",    label: "Adverb" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -206,19 +200,24 @@ function AddWordForm({ onSaved }: AddWordFormProps) {
             onChange={(e) => setNativeText(e.target.value)} />
           <div className="study-add-row">
             <select aria-label="Item type" className="study-add-select" value={itemType}
-              onChange={(e) => setItemType(e.target.value as ItemType)}>
+              onChange={(e) => {
+                const t = e.target.value as ItemType;
+                setItemType(t);
+                if (t !== "word") setLexicalType("");
+              }}>
               <option value="word">word</option>
-              <option value="phrase">phrase</option>
               <option value="phrasal_verb">phrasal verb</option>
               <option value="idiom">idiom</option>
               <option value="collocation">collocation</option>
             </select>
-            <select aria-label="Part of speech" className="study-add-select" value={lexicalType}
-              onChange={(e) => setLexicalType(e.target.value)}>
-              {LEXICAL_TYPE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+            {itemType === "word" && (
+              <select aria-label="Part of speech" className="study-add-select" value={lexicalType}
+                onChange={(e) => setLexicalType(e.target.value)}>
+                {LEXICAL_TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            )}
             <button type="submit" className="primary-button study-add-submit"
               disabled={status === "saving" || !targetText.trim()}>
               {status === "saving" ? "Saving…" : "Save"}
@@ -282,19 +281,24 @@ function EditItemForm({ item, onSaved, onCancel }: EditItemFormProps) {
           type="text" value={targetText} required
           onChange={(e) => setTargetText(e.target.value)} />
         <select aria-label="Item type" className="study-add-select"
-          value={itemType} onChange={(e) => setItemType(e.target.value as ItemType)}>
+          value={itemType} onChange={(e) => {
+            const t = e.target.value as ItemType;
+            setItemType(t);
+            if (t !== "word") setLexicalType("");
+          }}>
           <option value="word">word</option>
-          <option value="phrase">phrase</option>
           <option value="phrasal_verb">phrasal verb</option>
           <option value="idiom">idiom</option>
           <option value="collocation">collocation</option>
         </select>
-        <select aria-label="Part of speech" className="study-add-select"
-          value={lexicalType} onChange={(e) => setLexicalType(e.target.value)}>
-          {LEXICAL_TYPE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+        {itemType === "word" && (
+          <select aria-label="Part of speech" className="study-add-select"
+            value={lexicalType} onChange={(e) => setLexicalType(e.target.value)}>
+            {LEXICAL_TYPE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        )}
       </div>
       <input aria-label="Translation" className="study-add-input" type="text"
         placeholder="Translation" value={nativeText}
@@ -362,7 +366,11 @@ function ItemRow({ item, onUpdated, onDeleted }: ItemRowProps) {
           <span className="study-item-row__target">{item.target_text}</span>
           {item.native_text && <span className="study-item-row__native">{item.native_text}</span>}
           <div className="study-item-row__badges">
-            <span className={`study-badge study-badge--type`}>{item.item_type}</span>
+            <span className="study-badge study-badge--type">
+              {item.item_type === "word" && item.lexical_type
+                ? item.lexical_type.replace(/_/g, " ")
+                : item.item_type.replace(/_/g, " ")}
+            </span>
             <span className={`study-badge study-badge--${item.status}`}>{item.status}</span>
           </div>
           <div className="study-item-row__btns">

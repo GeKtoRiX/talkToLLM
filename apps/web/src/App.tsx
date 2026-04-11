@@ -16,6 +16,7 @@ export default function App() {
     conversationHistory,
     error,
     connected,
+    sttWarmingUp,
     textQuestion,
     setTextQuestion,
     activeScreenshot,
@@ -44,6 +45,7 @@ export default function App() {
           <StatusPill label={`State: ${sessionState}`} tone={error ? "danger" : "default"} />
           <StatusPill label={connected ? "Realtime connected" : "Disconnected"} tone={connected ? "success" : "warning"} />
           {activeScreenshot ? <StatusPill label="Screenshot active for next turns" tone="success" /> : null}
+          {sttWarmingUp ? <StatusPill label="STT model warming up…" tone="warning" /> : null}
         </div>
 
         <section className="screenshot-card">
